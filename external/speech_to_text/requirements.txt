@@ -1,0 +1,9 @@
+wheel
+torch
+torchaudio
+pytorch-lightning
+addict
+tqdm
+neptune-client
+editdistance
+git+git://github.com/parlance/ctcdecode.git

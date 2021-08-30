@@ -1,0 +1,55 @@
+{
+    "logger": {
+        "type": "NeptuneLogger",
+        "params": {
+            "offline_mode": true,
+            "project_name": "stt_pipeline",
+            "experiment_name": "baseline"
+        }
+    },
+    "tokenizer": {
+        "model_path": "/mnt/data_nvme/audio/stt_pipeline/configs/tokenizer_librispeech_chr.json"
+    },
+    "trainset": {
+        "batch_size": 8,
+        "data": {
+            "root": "/mnt/data_nvme/audio/data/",
+            "url": "train-clean-100",
+            "download": true
+        }
+    },
+    "valset": {
+        "batch_size": 4,
+        "data": {
+            "root": "/mnt/data_nvme/audio/data/",
+            "url": "test-clean",
+            "download": true
+        }
+    },
+    "model": {
+        "dtype": "QuartzNet",
+        "params": {
+            "cfg": [
+                {"channels_out": 256, "kernel_size": 33, "stride": 2, "dilation": 1, "groups": 1, "repeat": 1, "n_blocks": 1, "separable": true},
+                {"channels_out": 256, "kernel_size": 33, "stride": 1, "dilation": 1, "groups": 1, "repeat": 5, "n_blocks": 1, "separable": true},
+                {"channels_out": 256, "kernel_size": 39, "stride": 1, "dilation": 1, "groups": 1, "repeat": 5, "n_blocks": 1, "separable": true},
+                {"channels_out": 512, "kernel_size": 51, "stride": 1, "dilation": 1, "groups": 1, "repeat": 5, "n_blocks": 1, "separable": true},
+                {"channels_out": 512, "kernel_size": 63, "stride": 1, "dilation": 1, "groups": 1, "repeat": 5, "n_blocks": 1, "separable": true},
+                {"channels_out": 512, "kernel_size": 75, "stride": 1, "dilation": 1, "groups": 1, "repeat": 5, "n_blocks": 1, "separable": true},
+                {"channels_out": 512, "kernel_size": 87, "stride": 1, "dilation": 2, "groups": 1, "repeat": 1, "n_blocks": 1, "separable": true},
+                {"channels_out": 1024, "kernel_size": 1, "stride": 1, "dilation": 1, "groups": 1, "repeat": 1, "n_blocks": 1, "separable": false}
+            ],
+            "channels_in": 80,
+            "vocab_size": 28
+        }
+    },
+    "optimizer": {
+        "learning_rate": 0.05,
+        "epochs": 100
+    },
+    "pipeline": {
+        "monitor": "wer",
+        "monitor_mode": "min",
+        "num_workers": 1
+    }
+}
