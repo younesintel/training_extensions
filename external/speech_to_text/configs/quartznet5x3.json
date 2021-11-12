@@ -1,31 +1,35 @@
 {
-    "logger": {
-        "type": "NeptuneLogger",
-        "params": {
-            "offline_mode": true,
-            "project_name": "stt_pipeline",
-            "experiment_name": "baseline"
-        }
-    },
-    "tokenizer": {
-        "model_path": "/mnt/data_nvme/audio/stt_pipeline/configs/tokenizer_librispeech_chr.json"
-    },
     "trainset": {
-        "batch_size": 8,
-        "data": {
-            "root": "/mnt/data_nvme/audio/data/",
-            "url": "train-clean-100",
-            "download": true
-        }
+        "data_path": [
+            "/mnt/data_nvme/audio/data/LibriSpeech/train-clean-100",
+            "/mnt/data_nvme/audio/data/LibriSpeech/train-clean-360",
+            "/mnt/data_nvme/audio/data/LibriSpeech/train-other-500"
+        ],
+        "batch_size": 32
     },
     "valset": {
-        "batch_size": 4,
-        "data": {
-            "root": "/mnt/data_nvme/audio/data/",
-            "url": "test-clean",
-            "download": true
-        }
+        "data_path": [
+            "/mnt/data_nvme/audio/data/LibriSpeech/dev-clean"
+        ],
+        "batch_size": 4
     },
+    "tokenizer": {
+        "model_path": "/mnt/data_nvme/audio/ckpt/tokenizer.bpe",
+        "vocab_size": 80
+    },
+    "audio_transforms": {
+        "train": [
+            {"name": "WaveformTransformSpeed", "params": {}},
+            {"name": "WaveformTransformGain", "params": {}},
+            {"name": "NormalizedMelSpectrogram", "params": {"n_mels": 64, "mel_norm": "uniform"}},
+            {"name": "MelSpecTransform", "params": {"freq_max": 10, "time_max": 10}},
+            {"name": "MelCutoutTransform", "params": {"freq_max": 30, "time_max": 30}}
+        ],
+        "val": [
+            {"name": "NormalizedMelSpectrogram", "params": {"n_mels": 64, "mel_norm": "uniform"}}
+        ]
+    },
+    "metrics": ["cer", "wer"],
     "model": {
         "dtype": "QuartzNet",
         "params": {
@@ -39,17 +43,19 @@
                 {"channels_out": 512, "kernel_size": 87, "stride": 1, "dilation": 2, "groups": 1, "repeat": 1, "n_blocks": 1, "separable": true},
                 {"channels_out": 1024, "kernel_size": 1, "stride": 1, "dilation": 1, "groups": 1, "repeat": 1, "n_blocks": 1, "separable": false}
             ],
-            "channels_in": 80,
-            "vocab_size": 28
+            "n_mels": 64
         }
     },
     "optimizer": {
         "learning_rate": 0.05,
-        "epochs": 100
+        "weight_decay": 0.0001,
+        "betas": [0.95, 0.5],
+        "epochs": 1200,
+        "warmup_steps": 2000
     },
     "pipeline": {
-        "monitor": "wer",
+        "monitor": "wer_val",
         "monitor_mode": "min",
-        "num_workers": 1
+        "num_workers": 0
     }
 }

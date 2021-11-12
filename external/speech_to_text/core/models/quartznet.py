@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from .utils import init_weights
 
 class GroupShuffle(nn.Module):
     def __init__(self, groups):
@@ -118,10 +118,11 @@ class QNetBlock(nn.Module):
 
 
 class QuartzNet(nn.Module):
-    def __init__(self, channels_in, vocab_size, cfg):
+    def __init__(self, n_mels, vocab_size, cfg):
         super().__init__()
         self.stride = 1
         layers = []
+        channels_in = n_mels
         for params in cfg:
             for b in range(params["n_blocks"]):
                 self.stride *= params["stride"]
@@ -132,8 +133,10 @@ class QuartzNet(nn.Module):
                 channels_in = params["channels_out"]
         self.layers = nn.Sequential(*layers)
         self.predictor = nn.Conv1d(cfg[-1]["channels_out"], vocab_size, kernel_size=1)
+        self.apply(lambda x: init_weights(x))
 
     def forward(self, x):
         x = self.layers(x)
         x = self.predictor(x)
+        x = x.permute(0, 2, 1)
         return x
