@@ -27,6 +27,7 @@ from ote_sdk.entities.model_template import parse_model_template
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.task_environment import TaskEnvironment
+from ote_sdk.entities.train_parameters import TrainParameters
 from ote_sdk.usecases.adapters.model_adapter import ModelAdapter
 
 
@@ -90,7 +91,7 @@ def main():
 
     output_model = ModelEntity(dataset, environment.get_model_configuration(), model_status=ModelStatus.NOT_READY)
 
-    task.train(dataset, output_model)
+    task.train(dataset, output_model, train_parameters=TrainParameters())
 
     if output_model.model_status != ModelStatus.NOT_READY:
         with open(args.save_weights, "wb") as f:

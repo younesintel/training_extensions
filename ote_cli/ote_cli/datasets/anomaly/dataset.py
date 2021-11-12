@@ -1,8 +1,9 @@
+import os
+import shutil
 from pathlib import Path
 from typing import List, Optional, Union
 
 import pandas as pd
-from anomalib.datasets.anomaly_dataset import make_dataset
 from ote_sdk.entities.annotation import Annotation, AnnotationSceneEntity, AnnotationSceneKind
 from ote_sdk.entities.dataset_item import DatasetItemEntity
 from ote_sdk.entities.datasets import DatasetEntity
@@ -14,23 +15,61 @@ from ote_sdk.entities.subset import Subset
 
 
 class JSONFromDataset:
-    def __init__(self, root: Union[str, Path]) -> None:
-        self.root = root if isinstance(root, Path) else Path(root)
+    def __init__(self, dataset_path: Union[Path, str], annotation_path: Union[Path, str] = "/tmp/anomalib") -> None:
+        self.dataset_path = dataset_path if isinstance(dataset_path, Path) else Path(dataset_path)
+        self.annotation_path = annotation_path if isinstance(annotation_path, Path) else Path(annotation_path)
+        os.makedirs(self.annotation_path, exist_ok=True)
 
-    def __enter__(self):
-        data_frame = make_dataset(path=self.root)
-        data_frame = data_frame[["image_path"]]
+    def __enter__(self) -> Path:
+        """
+        Generate json files
+        """
+        samples_list = [
+            ("/".join(filename.parts[-3:]), filename.parts[-2], filename.parts[-3])
+            for filename in self.dataset_path.glob("**/*.png")
+        ]
+        samples = pd.DataFrame(samples_list, columns=["image_path", "label", "split"])
+        good_samples = samples[samples.label == "good"]
+        good_samples = good_samples[["image_path", "label"]]
+        anomalous_samples = samples[samples.label != "good"]
+        anomalous_samples = anomalous_samples[["image_path", "label"]]
+        total_good_size = len(good_samples)
+        total_anomalous_size = len(anomalous_samples)
+        # train good 80% anomalous 20%
+        train_df = pd.concat(
+            [good_samples.iloc[: int(0.8 * total_good_size)], anomalous_samples.iloc[: int(0.2 * total_anomalous_size)]]
+        )
+        # split val and test into 10% good anomalous 40% each
+        test_df = pd.concat(
+            [
+                good_samples.iloc[int(0.8 * total_good_size) : int(0.9 * total_good_size)],
+                anomalous_samples.iloc[int(0.2 * total_anomalous_size) : int(0.6 * total_anomalous_size)],
+            ]
+        )
+        val_df = pd.concat(
+            [
+                good_samples.iloc[int(0.9 * total_good_size) :],
+                anomalous_samples.iloc[int(0.6 * total_anomalous_size) :],
+            ]
+        )
+        train_df.to_json(self.annotation_path / "train.json")
+        val_df.to_json(self.annotation_path / "val.json")
+        test_df.to_json(self.annotation_path / "test.json")
+        return self.annotation_path
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        shutil.rmtree(self.annotation_path)
 
 
 class AnomalyDataset(DatasetEntity):
     def __init__(
         self,
-        train_ann_file: Union[str, Path],
-        train_data_root: Union[str, Path],
-        val_ann_file: Union[str, Path],
-        val_data_root: Union[str, Path],
-        test_ann_file: Optional[Union[str, Path]],
-        test_data_root: Optional[Union[str, Path]],
+        train_ann_file: Optional[Union[str, Path]] = None,
+        train_data_root: Optional[Union[str, Path]] = None,
+        val_ann_file: Optional[Union[str, Path]] = None,
+        val_data_root: Optional[Union[str, Path]] = None,
+        test_ann_file: Optional[Union[str, Path]] = None,
+        test_data_root: Optional[Union[str, Path]] = None,
     ):
 
         items = []
@@ -38,12 +77,9 @@ class AnomalyDataset(DatasetEntity):
         self.normal_label = LabelEntity(name="normal", domain=Domain.ANOMALY_CLASSIFICATION)
         self.abnormal_label = LabelEntity(name="anomalous", domain=Domain.ANOMALY_CLASSIFICATION)
 
-        train_ann_file = train_ann_file if isinstance(train_ann_file, Path) else Path(train_ann_file)
-        train_data_root = train_data_root if isinstance(train_data_root, Path) else Path(train_data_root)
-        val_ann_file = val_ann_file if isinstance(val_ann_file, Path) else Path(val_ann_file)
-        val_data_root = val_data_root if isinstance(val_data_root, Path) else Path(val_data_root)
-
         if train_ann_file is not None or train_data_root is not None:
+            train_ann_file = train_ann_file if isinstance(train_ann_file, Path) else Path(train_ann_file)
+            train_data_root = train_data_root if isinstance(train_data_root, Path) else Path(train_data_root)
             items.extend(
                 self.get_dataset_items(
                     ann_file_path=train_ann_file, data_root_dir=train_data_root, subset=Subset.TRAINING
@@ -51,6 +87,8 @@ class AnomalyDataset(DatasetEntity):
             )
 
         if val_ann_file is not None or val_data_root is not None:
+            val_ann_file = val_ann_file if isinstance(val_ann_file, Path) else Path(val_ann_file)
+            val_data_root = val_data_root if isinstance(val_data_root, Path) else Path(val_data_root)
             items.extend(
                 self.get_dataset_items(
                     ann_file_path=val_ann_file, data_root_dir=val_data_root, subset=Subset.VALIDATION
@@ -68,24 +106,24 @@ class AnomalyDataset(DatasetEntity):
 
     def get_dataset_items(self, ann_file_path: Path, data_root_dir: Path, subset: Subset) -> List[DatasetItemEntity]:
         test_mode = subset in {Subset.VALIDATION, Subset.TESTING}
-        label: LabelEntity = self.abnormal_label
-        if test_mode:
-            label = self.normal_label
         # read annotation file
-        samples = pd.read_json(path=ann_file_path)
+        samples = pd.read_json(ann_file_path)
 
         dataset_items = []
         for _, sample in samples.iterrows():
             # Create image
-            image = Image(file_path=data_root_dir / sample.image_path)
+            image = Image(file_path=str(data_root_dir / sample.image_path))
             # Create annotation
             shape = Rectangle(x1=0, y1=0, x2=1, y2=1)
+            label = self.abnormal_label
+            if sample.label == "good":
+                label = self.normal_label
             labels = [ScoredLabel(label)]
             annotations = [Annotation(shape=shape, labels=labels)]
             annotation_scene = AnnotationSceneEntity(annotations=annotations, kind=AnnotationSceneKind.ANNOTATION)
 
             # Create dataset item
-            dataset_item = DatasetItemEntity(media=image, annotation_scene=annotation_scene, subset=sample.subset)
+            dataset_item = DatasetItemEntity(media=image, annotation_scene=annotation_scene, subset=subset)
             # Add to dataset items
             dataset_items.append(dataset_item)
 
