@@ -8,6 +8,7 @@ except ImportError as e:
 
 try:
     from torchreid.integration.sc.utils import ClassificationDatasetAdapter
+
     ClassificationDataset = ClassificationDatasetAdapter
 except ImportError as e:
     print(e)
@@ -15,6 +16,7 @@ except ImportError as e:
 
 try:
     from mmseg.apis.ote.extension.datasets import MMDatasetAdapter
+
     SemanticSegmentationDataset = MMDatasetAdapter
 except ImportError as e:
     print(e)
@@ -23,17 +25,18 @@ except ImportError as e:
 
 def get_dataset_class(name):
     registry = {
-        'detection': ObjectDetectionDataset,
-        'classification': ClassificationDataset,
-        'segmentation': SemanticSegmentationDataset
+        # "detection": ObjectDetectionDataset,
+        # "classification": ClassificationDataset,
+        # "segmentation": SemanticSegmentationDataset,
+        "anomaly_classification": AnomalyDataset,
     }
 
     return registry[str(name).lower()]
 
 
 __all__ = [
-    'ObjectDetectionDataset',
-    'ClassificationDataset',
-    'SemanticSegmentationDataset',
-    'get_dataset_class',
+    "ObjectDetectionDataset",
+    "ClassificationDataset",
+    "SemanticSegmentationDataset",
+    "get_dataset_class",
 ]
