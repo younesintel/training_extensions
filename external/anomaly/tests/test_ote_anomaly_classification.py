@@ -15,13 +15,13 @@ Test Anomaly Classification Task
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions
 # and limitations under the License.
-
 import logging
+import time
 from threading import Thread
 
 import numpy as np
 import pytest
-from core.config import get_anomalib_config
+from ote_anomalib.config import get_anomalib_config
 
 from tests.helpers.config import get_config
 from tests.helpers.dummy_dataset import TestDataset
@@ -68,9 +68,12 @@ class TestAnomalyClassification:
             category=category,
         )
         thread = Thread(target=self._trainer.train)
+        start_time = time.time()
         thread.start()
         self._trainer.cancel_training()
-        assert self._trainer.base_task.model.results.performance == {}
+        thread.join()
+        # stopping process has to happen in less than 10 seconds
+        assert time.time() - start_time < 10
 
     @TestDataset(num_train=200, num_test=10, dataset_path="./datasets/MVTec", use_mvtec=False)
     def test_ote_train_export_and_optimize(

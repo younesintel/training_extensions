@@ -34,7 +34,7 @@ def get_dataset_class(name):
         # "detection": ObjectDetectionDataset,
         # "classification": ClassificationDataset,
         # "segmentation": SemanticSegmentationDataset,
-        "anomaly": AnomalyDataset,
+        "anomaly_classification": AnomalyDataset,
     }
 
     return registry[str(name).lower()]

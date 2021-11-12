@@ -21,6 +21,8 @@ import io
 import logging
 import os
 import shutil
+import struct
+import subprocess
 import tempfile
 from glob import glob
 from typing import Optional, Union
@@ -28,13 +30,14 @@ from typing import Optional, Union
 import torch
 from anomalib.core.model import AnomalyModule
 from anomalib.models import get_model
-from core.callbacks import InferenceCallback, ModelMonitorCallback, ProgressCallback
-from core.config import get_anomalib_config
-from core.data import OTEAnomalyDataModule
 from omegaconf import DictConfig, ListConfig
+from ote_anomalib.callbacks import InferenceCallback, ProgressCallback
+from ote_anomalib.config import get_anomalib_config
+from ote_anomalib.data import OTEAnomalyDataModule
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.model import ModelEntity
+from ote_sdk.entities.metrics import Performance, ScoreMetric
+from ote_sdk.entities.model import ModelEntity, ModelPrecision, ModelStatus
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.entities.train_parameters import TrainParameters
@@ -62,8 +65,8 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         self.labels = task_environment.get_labels()
 
         # Hyperparameters.
+        self.project_path: str = tempfile.mkdtemp(prefix="ote-anomalib")
         self.config = self.get_config()
-        self.config.project.path = tempfile.mkdtemp(prefix="ote-anomalib")
 
         self.model_name = task_environment.model_template.name
         self.model = self.load_model(ote_model=task_environment.model)
@@ -78,7 +81,10 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             Union[DictConfig, ListConfig]: Anomalib config
         """
         hyper_parameters = self.task_environment.get_hyper_parameters()
-        return get_anomalib_config(ote_config=hyper_parameters)
+        config = get_anomalib_config(ote_config=hyper_parameters)
+        config.dataset.task = "classification"
+        config.project.path = self.project_path
+        return config
 
     def load_model(self, ote_model: Optional[ModelEntity]) -> AnomalyModule:
         """
@@ -97,7 +103,10 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         if ote_model is None:
             model = get_model(config=self.config)
-            logger.info("No trained model in project yet. Created new model with '%s'", self.model_name)
+            logger.info(
+                "No trained model in project yet. Created new model with '%s'",
+                self.model_name,
+            )
         else:
             model = get_model(config=self.config)
 
@@ -124,17 +133,12 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         config = self.get_config()
         datamodule = OTEAnomalyDataModule(config=config, dataset=dataset)
-
-        # Callbacks.
-        progress = ProgressCallback(parameters=train_parameters)
-        model_monitor = ModelMonitorCallback(output_model, self.save_model)
-        callbacks = [progress, model_monitor]
-
-        if hasattr(self.model, "callbacks"):
-            callbacks.append(self.model.callbacks)
+        callbacks = [ProgressCallback(parameters=train_parameters)]
 
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
         self.trainer.fit(model=self.model, datamodule=datamodule)
+
+        self.save_model(output_model)
 
     def save_model(self, output_model: ModelEntity):
         """
@@ -142,11 +146,22 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         config = self.get_config()
         labels = {label.name: label.color.rgb_tuple for label in self.labels}
-        model_info = {"model": self.model.state_dict(), "config": config, "labels": labels, "VERSION": 1}
+        model_info = {
+            "model": self.model.state_dict(),
+            "config": config,
+            "labels": labels,
+            "VERSION": 1,
+        }
         buffer = io.BytesIO()
         torch.save(model_info, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
-        self.task_environment.model = output_model
+        # store computed threshold
+        output_model.set_data("threshold", bytes(struct.pack("f", self.model.threshold.item())))
+
+        f1_score = self.model.results.performance["image_f1_score"]
+        output_model.performance = Performance(score=ScoreMetric(name="F1 Score", value=f1_score))
+        output_model.precision = [ModelPrecision.FP32]
+        output_model.model_status = ModelStatus.SUCCESS
 
     def cancel_training(self):
         """
@@ -177,7 +192,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         self.trainer.predict(model=self.model, datamodule=datamodule)
         return dataset
 
-    def evaluate(self, output_resultset: ResultSetEntity, _evaluation_metric: Optional[str] = None):
+    def evaluate(self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None):
         """
         Evaluate the performance on a result set.
         """
@@ -199,7 +214,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
 
         # pylint: disable=no-member; need to refactor this
         height, width = self.config.model.input_size
-        onnx_path = os.path.join(self.config.project.path, "compressed_model.onnx")
+        onnx_path = os.path.join(self.config.project.path, "onnx_model.onnx")
         torch.onnx.export(
             model=self.model.model,
             args=torch.zeros((1, 3, height, width)).to(self.model.device),
@@ -207,7 +222,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             opset_version=11,
         )
         optimize_command = "mo --input_model " + onnx_path + " --output_dir " + self.config.project.path
-        os.system(optimize_command)
+        subprocess.call(optimize_command, shell=True)
         bin_file = glob(os.path.join(self.config.project.path, "*.bin"))[0]
         xml_file = glob(os.path.join(self.config.project.path, "*.xml"))[0]
         with open(bin_file, "rb") as file:
@@ -246,5 +261,6 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             logger.warning("Got unload request, but not on Docker. Only clearing CUDA cache")
             torch.cuda.empty_cache()
             logger.warning(
-                "Done unloading. Torch is still occupying %f bytes of GPU memory", torch.cuda.memory_allocated()
+                "Done unloading. Torch is still occupying %f bytes of GPU memory",
+                torch.cuda.memory_allocated(),
             )

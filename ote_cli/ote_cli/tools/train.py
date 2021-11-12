@@ -46,7 +46,7 @@ def parse_args(config):
 
 def main():
     # Load template.yaml file.
-    template = parse_model_template("external/anomalib/anomaly_classification/configs/padim/template.yaml")
+    template = parse_model_template("template.yaml")
     # Get hyper parameters schema.
     hyper_parameters = template.hyper_parameters.data
     assert hyper_parameters
