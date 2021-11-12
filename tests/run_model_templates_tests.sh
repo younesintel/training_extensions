@@ -1,4 +1,3 @@
-rm -rf /tmp/ote_cli/ANOMALY_CLASSIFICATION/
 virtualenv venv || exit 1
 . venv/bin/activate || exit 1
 pip install -e ote_cli || exit 1
