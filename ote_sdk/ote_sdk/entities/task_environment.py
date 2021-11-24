@@ -90,6 +90,10 @@ class TaskEnvironment:
 
         :param instance_of: subtype of ModelConfig of the hyper paramters
         """
+        
+        if "OTEDetectionConfig" in str(instance_of):
+            raise Exception("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        
         if instance_of is None:
             # If the instance_of is None, the type variable is not defined so the
             # return type won't be deduced correctly
