@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+from datetime import datetime
+
 import pytest
 
 from ote_sdk.entities.id import ID
@@ -95,7 +97,7 @@ class TestResultset:
                 assert getattr(result_set, name) == set_attr_name
 
         assert result_set.performance == NullPerformance()
-        assert result_set.creation_date == now()
+        assert type(result_set.creation_date) == datetime
         assert result_set.id == ID()
 
         assert result_set.has_score_metric() is False
