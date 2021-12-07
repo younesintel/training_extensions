@@ -37,29 +37,39 @@ class STFPMConfig(BaseAnomalyClassificationConfig):
     description = header
 
     @attrs
-    class ModelParameters(ParameterGroup):
-        """
-        Parameter Group for training model
-        """
+    class LearningParameters(ParameterGroup):
+        """Learning Parameters."""
 
-        header = string_attribute("Model Parameters")
+        header = string_attribute("Learning Parameters")
         description = header
 
         @attrs
-        class EarlyStoppingParameters(ParameterGroup):
+        class ModelParameters(ParameterGroup):
             """
-            Early stopping parameters
+            Parameter Group for training model
             """
 
-            header = string_attribute("Early Stopping Parameters")
+            header = string_attribute("Model Parameters")
             description = header
 
-            metric = selectable(
-                default_value=EarlyStoppingMetrics.IMAGE_ROC_AUC,
-                header="Early Stopping Metric",
-                description="The metric used to determine if the model should stop training",
-            )
+            @attrs
+            class EarlyStoppingParameters(ParameterGroup):
+                """
+                Early stopping parameters
+                """
 
-        early_stopping = add_parameter_group(EarlyStoppingParameters)
+                header = string_attribute("Early Stopping Parameters")
+                description = header
 
-    model = add_parameter_group(ModelParameters)
+                metric = selectable(
+                    default_value=EarlyStoppingMetrics.IMAGE_ROC_AUC,
+                    header="Early Stopping Metric",
+                    description="The metric used to determine if the model should stop training",
+                )
+
+            early_stopping = add_parameter_group(EarlyStoppingParameters)
+
+        model = add_parameter_group(ModelParameters)
+        dataset = add_parameter_group(BaseAnomalyClassificationConfig.DatasetParameters)
+
+    learning_parameters = add_parameter_group(LearningParameters)

@@ -19,6 +19,10 @@ Configurable parameters for Padim anomaly classification task
 from anomaly_classification.configs.configuration import BaseAnomalyClassificationConfig
 from attr import attrs
 from ote_sdk.configuration.elements import string_attribute
+from ote_sdk.configuration.elements.parameter_group import (
+    ParameterGroup,
+    add_parameter_group,
+)
 
 
 @attrs
@@ -29,3 +33,13 @@ class PadimConfig(BaseAnomalyClassificationConfig):
 
     header = string_attribute("Configuration for Padim")
     description = header
+
+    @attrs
+    class LearningParameters(ParameterGroup):
+        """Learning Parameters."""
+
+        header = string_attribute("Learning Parameters")
+        description = header
+        dataset = add_parameter_group(BaseAnomalyClassificationConfig.DatasetParameters)
+
+    learning_parameters = add_parameter_group(LearningParameters)

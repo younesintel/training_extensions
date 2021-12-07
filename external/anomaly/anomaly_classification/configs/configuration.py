@@ -95,5 +95,4 @@ class BaseAnomalyClassificationConfig(ConfigurableParameters):
             max_value=maxsize,
         )
 
-    dataset = add_parameter_group(DatasetParameters)
     pot_parameters = add_parameter_group(POTParameters)

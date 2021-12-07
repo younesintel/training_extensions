@@ -55,6 +55,11 @@ def update_anomalib_config(anomalib_config: Union[DictConfig, ListConfig], ote_c
         sc_value = sc_value.value if hasattr(sc_value, "value") else sc_value
         anomalib_config[param] = sc_value
     for group in ote_config.groups:
+        if group == "learning_parameters":
+            # expand learning_parameters group
+            learning_parameters = getattr(ote_config, "learning_parameters")
+            for learning_group in learning_parameters.groups:
+                update_anomalib_config(anomalib_config[learning_group], getattr(learning_parameters, learning_group))
         # Since pot_parameters are specific to OTE
-        if group != "pot_parameters":
+        elif group != "pot_parameters":
             update_anomalib_config(anomalib_config[group], getattr(ote_config, group))
