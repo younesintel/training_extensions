@@ -99,7 +99,7 @@ fi
 CONSTRAINTS_FILE=$(tempfile)
 cat constraints.txt >> ${CONSTRAINTS_FILE}
 
-# pip install --upgrade pip || exit 1
+pip install --upgrade pip || exit 1
 pip install wheel -c ${CONSTRAINTS_FILE} || exit 1
 pip install --upgrade setuptools -c ${CONSTRAINTS_FILE} || exit 1
 
