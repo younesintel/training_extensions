@@ -186,6 +186,14 @@ def create_annotation_from_segmentation_map(
         contours, hierarchies = cv2.findContours(
             label_index_map, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE
         )
+        warnings.warn(
+            f"The following contours have been found in the segmentation map: \n"
+            f"contours:\n"
+            f"{str(contours)}\n"
+            f"hierarchies:\n"
+            f"{str(hierarchies)}\n",
+            UserWarning,
+        )
 
         if hierarchies is not None:
             for contour, hierarchy in zip(contours, hierarchies[0]):
