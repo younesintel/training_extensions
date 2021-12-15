@@ -7,7 +7,12 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from copy import deepcopy
 from typing import List, Optional, Type
+import tempfile
+from os import path as osp
+import yaml
 
+import numpy
+import torch
 import pytest
 from mmdet.apis.ote.apis.detection.ote_utils import get_task_class
 from mmdet.integration.nncf.utils import is_nncf_enabled
@@ -27,6 +32,13 @@ from ote_sdk.entities.subset import Subset
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
+from ote_sdk.entities.train_parameters import (
+    UpdateProgressCallback, TrainParameters)
+
+try:
+    import hpopt
+except ImportError as e:
+    hpopt = None
 
 from .e2e_test_system import DataCollector
 from .training_tests_common import (
@@ -78,8 +90,209 @@ class BaseOTETestAction(ABC):
         raise NotImplementedError("The main action method is not implemented")
 
 
+class OTETestHPO(BaseOTETestAction):
+    _name = "hpo"
+
+    def __init__(
+        self, dataset, labels_schema, template_path, num_training_iters,
+        batch_size, auto_config):
+        self.dataset = dataset
+        self.labels_schema = labels_schema
+        self.template_path = template_path
+        self.num_training_iters = num_training_iters
+        self.batch_size = batch_size
+        self.work_dir = tempfile.mkdtemp(prefix="ote-test-hpo-")
+        self.auto_config = auto_config
+
+        logger.debug(f"HPO work dir : {self.work_dir}")
+
+        logger.info("hpopt configuration is loaded")
+        with open(osp.dirname(self.template_path)
+                  + "/hpo_config.yaml", 'r') as f:
+            hpopt_cfg = yaml.safe_load(f)
+        trainset_size = len(self.dataset.get_subset(Subset.TRAINING))
+        valset_size = len(self.dataset.get_subset(Subset.VALIDATION))
+
+        self.metric = hpopt_cfg['metric']
+        hpopt_arguments = dict(
+            search_alg='bayes_opt',
+            search_space={'learning_parameters.learning_rate':hpopt.search_space(
+                "quniform", [0.001, 0.01, 0.001])},
+            save_path=self.work_dir,
+            max_iterations=1,
+            subset_ratio=1.0,
+            early_stop = None,
+            full_dataset_size=trainset_size,
+            non_pure_train_ratio=trainset_size/(trainset_size+valset_size),
+            num_init_trials=1,
+            num_trials=2)
+
+        if self.num_training_iters != KEEP_CONFIG_FIELD_VALUE:
+            hpopt_arguments['num_full_iterations'] = int(self.num_training_iters)
+        else:
+            model_template = parse_model_template(self.template_path)
+            params = ote_sdk_configuration_helper_create(
+                model_template.hyper_parameters.data
+            )
+            hpopt_arguments['num_full_iterations'] = params.learning_parameters.num_iters
+
+        if auto_config:
+            hpopt_arguments['num_init_trials'] = 5
+            search_sapce = dict()
+            for key, val in hpopt_cfg['hp_space'].items():
+                search_sapce[key] = hpopt.search_space(val['param_type'],
+                                                       val['range'])
+            hpopt_arguments['search_space'] = search_sapce
+            del hpopt_arguments['num_trials']
+            del hpopt_arguments['max_iterations']
+            del hpopt_arguments['subset_ratio']
+
+        self.hpo = hpopt.create(**hpopt_arguments)
+
+    @staticmethod
+    def _create_environment_and_task(params, labels_schema, model_template):
+        environment = TaskEnvironment(
+            model=None,
+            hyper_parameters=params,
+            label_schema=labels_schema,
+            model_template=model_template,
+        )
+        logger.info("Create base Task")
+        task_impl_path = model_template.entrypoints.base
+        task_cls = get_task_class(task_impl_path)
+        task = task_cls(task_environment=environment)
+        return environment, task
+
+    @staticmethod
+    def set_hyperparameter(origin_hp, hp_config):
+        for param_key, param_val in hp_config.items():
+            param_key = param_key.split('.')
+
+            target = origin_hp
+            for val in param_key[:-1]:
+                target = getattr(target, val)
+            setattr(target, param_key[-1], param_val)
+
+    def _run_ote_training(self, hp_config):
+        class HpoDataset:
+            def __init__(self, fullset, config=None, indices=None):
+                self.fullset = fullset
+                self.indices = indices
+                self.subset_ratio = 1 if config is None else config['subset_ratio']
+
+            def __len__(self) -> int:
+                return len(self.indices)
+
+            def __getitem__(self, indx) -> dict:
+                return self.fullset[self.indices[indx]]
+
+            def __getattr__(self, name):
+                if getattr(self.fullset, name, None) is not None:
+                    if name == 'get_item_labels':
+                        return self.__get_item_labels
+                    if name == '_load_item':
+                        return self.____load_item
+
+                return getattr(self.fullset, name)
+
+            def get_subset(self, subset: Subset):
+                dataset = self.fullset.get_subset(subset)
+                if subset != Subset.TRAINING or self.subset_ratio > 0.99:
+                    return dataset
+
+                indices = torch.randperm(len(dataset),
+                                        generator=torch.Generator().manual_seed(42))
+                indices = indices.tolist()
+                indices = indices[:int(len(dataset)*self.subset_ratio)]
+
+                return HpoDataset(dataset, config=None, indices=indices)
+
+            # ClassificationDatasetAdapter
+            def __get_item_labels(self, indx):
+                return self.fullset.get_item_labels(self.indices[indx])
+
+            def ____load_item(self, indx):
+                return self.fullset._load_item(self.indices[indx])
+
+        class HpoCallback(UpdateProgressCallback):
+            def __init__(self, hp_config, metric, hpo_task):
+                self.hp_config = hp_config
+                self.metric = metric
+                self.hpo_task = hpo_task
+
+            def __call__(self, progress: float, score: Optional[float] = None):
+                if score is not None and type(score) != list:
+                    if isinstance(score, (int, float)):  # det
+                        if hpopt.report(config=self.hp_config,
+                                        score=score) == hpopt.Status.STOP:
+                            self.hpo_task.cancel_training()
+                    elif type(score) == numpy.float64:  # cls
+                        if hpopt.report(config=self.hp_config,
+                                        score=score.item()) == hpopt.Status.STOP:
+                            self.hpo_task.cancel_training()
+
+        dataset = HpoDataset(deepcopy(self.dataset), hp_config)
+
+        model_template = parse_model_template(self.template_path)
+        model_template.hpo = {'hp_config': hp_config, 'metric': self.metric}
+
+        params = ote_sdk_configuration_helper_create(
+            model_template.hyper_parameters.data
+        )
+
+        params.learning_parameters.num_iters = hp_config['iterations']
+
+        if self.batch_size != KEEP_CONFIG_FIELD_VALUE:
+            params.learning_parameters.batch_size = int(self.batch_size)
+
+        self.set_hyperparameter(params, hp_config['params'])
+
+        environment, task = self._create_environment_and_task(
+            params, self.labels_schema, model_template
+        )
+
+        logger.debug(f"HPO trial {hp_config['trial_id']} Train model")
+        output_model = ModelEntity(
+            dataset,
+            environment.get_model_configuration(),
+            model_status=ModelStatus.NOT_READY,
+        )
+
+        train_param = TrainParameters(False, HpoCallback(
+            hp_config, self.metric, task), None)
+
+        task.train(dataset, output_model, train_param)
+
+        hpopt.finalize_trial(hp_config)
+
+    def _run_hpo(self, data_collector):
+        logger.info('Begin HPO')
+        while True:
+            hp_config = self.hpo.get_next_sample()
+
+            if hp_config is None:
+                break
+
+            logger.info(f"Begin HPO {hp_config['trial_id']} trial")
+            self._run_ote_training(hp_config=hp_config)
+
+    def __call__(self, data_collector: DataCollector, results_prev_stages: OrderedDict):
+        self._run_hpo(data_collector)
+        best_config = self.hpo.get_best_config()
+
+        assert (
+            hpopt.get_previous_status(self.work_dir) == hpopt.Status.COMPLETERESULT
+        ), "HPO was failed"
+
+        logger.info(f"End HPO, best_config : {best_config}")
+
+        results = {"best_config" : best_config}
+        return results
+
+
 class OTETestTrainingAction(BaseOTETestAction):
     _name = "training"
+    _depends_stages_names = ["hpo"] if hpopt is not None else []
 
     def __init__(
         self, dataset, labels_schema, template_path, num_training_iters, batch_size
@@ -110,7 +323,7 @@ class OTETestTrainingAction(BaseOTETestAction):
             raise RuntimeError("Cannot get training performance")
         return performance_to_score_name_value(training_performance)
 
-    def _run_ote_training(self, data_collector):
+    def _run_ote_training(self, data_collector, best_config=None):
         logger.debug(f"self.template_path = {self.template_path}")
 
         print(f"train dataset: {len(self.dataset.get_subset(Subset.TRAINING))} items")
@@ -150,6 +363,14 @@ class OTETestTrainingAction(BaseOTETestAction):
                 f"{params.learning_parameters.batch_size}"
             )
 
+        if best_config:
+            logger.debug(
+                "Using best config from HPO, "
+                f"set params.learning_parameters.learning_rate="
+                f"{params.learning_parameters.batch_size}"
+            )
+            OTETestHPO.set_hyperparameter(params, best_config)
+
         logger.debug("Setup environment")
         self.environment, self.task = self._create_environment_and_task(
             params, self.labels_schema, self.model_template
@@ -175,7 +396,13 @@ class OTETestTrainingAction(BaseOTETestAction):
         data_collector.log_final_metric("metric_value", score_value)
 
     def __call__(self, data_collector: DataCollector, results_prev_stages: OrderedDict):
-        self._run_ote_training(data_collector)
+
+        if hpopt is None:
+            best_config = None
+        else:
+            self._check_result_prev_stages(results_prev_stages, self.depends_stages_names)
+            best_config = results_prev_stages["hpo"]["best_config"]
+        self._run_ote_training(data_collector, best_config)
         results = {
             "model_template": self.model_template,
             "task": self.task,
@@ -633,7 +860,7 @@ class OTETestNNCFExportEvaluationAction(BaseOTETestAction):
 
 
 def get_default_test_action_classes() -> List[Type[BaseOTETestAction]]:
-    return [
+    res = [
         OTETestTrainingAction,
         OTETestTrainingEvaluationAction,
         OTETestExportAction,
@@ -645,3 +872,9 @@ def get_default_test_action_classes() -> List[Type[BaseOTETestAction]]:
         OTETestNNCFExportAction,
         OTETestNNCFExportEvaluationAction,
     ]
+    if hpopt is not None:
+        res.insert(0, OTETestHPO)
+    else:
+        logger.info("hpopt insn't installed. HPO test is skipped")
+
+    return res
