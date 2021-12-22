@@ -18,6 +18,7 @@ Inference Callbacks for OTE inference
 
 from typing import Any, List
 
+import cv2
 import numpy as np
 import pytorch_lightning as pl
 from anomalib.core.model.anomaly_module import AnomalyModule
@@ -63,6 +64,7 @@ class InferenceCallback(Callback):
             dataset_item.append_annotations([shape])
 
             heatmap = anomaly_map_to_color_map(anomaly_map.squeeze())
+            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
             heatmap_media = ResultMediaEntity(
                 name="Anomaly Map",
                 type="anomaly_map",
