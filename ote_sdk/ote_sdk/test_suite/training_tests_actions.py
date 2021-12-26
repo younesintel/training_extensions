@@ -186,6 +186,114 @@ class OTETestTrainingAction(BaseOTETestAction):
         return results
 
 
+class ClassificationTestTrainingAction(BaseOTETestAction):
+    _name = "training"
+
+    def __init__(
+        self, dataset, labels_schema, template_path, max_num_epochs, batch_size
+    ):
+        self.dataset = dataset
+        self.labels_schema = labels_schema
+        self.template_path = template_path
+        self.num_training_iters = max_num_epochs
+        self.batch_size = batch_size
+
+    @staticmethod
+    def _create_environment_and_task(params, labels_schema, model_template):
+        environment = TaskEnvironment(
+            model=None,
+            hyper_parameters=params,
+            label_schema=labels_schema,
+            model_template=model_template,
+        )
+        logger.info("Create base Task")
+        task_impl_path = model_template.entrypoints.base
+        task_cls = get_impl_class(task_impl_path)
+        task = task_cls(task_environment=environment)
+        return environment, task
+
+    def _get_training_performance_as_score_name_value(self):
+        training_performance = getattr(self.output_model, "performance", None)
+        if training_performance is None:
+            raise RuntimeError("Cannot get training performance")
+        return performance_to_score_name_value(training_performance)
+
+    def _run_ote_training(self, data_collector):
+        logger.debug(f"self.template_path = {self.template_path}")
+
+        print(f"train dataset: {len(self.dataset.get_subset(Subset.TRAINING))} items")
+        print(
+            f"validation dataset: "
+            f"{len(self.dataset.get_subset(Subset.VALIDATION))} items"
+        )
+
+        logger.debug("Load model template")
+        self.model_template = parse_model_template(self.template_path)
+
+        logger.debug("Set hyperparameters")
+        params = ote_sdk_configuration_helper_create(
+            self.model_template.hyper_parameters.data
+        )
+        if self.num_training_iters != KEEP_CONFIG_FIELD_VALUE:
+            params.learning_parameters.max_num_epochs = int(self.num_training_iters)
+            logger.debug(
+                f"Set params.learning_parameters.max_num_epochs="
+                f"{params.learning_parameters.max_num_epochs}"
+            )
+        else:
+            logger.debug(
+                f"Keep params.learning_parameters.max_num_epochs="
+                f"{params.learning_parameters.max_num_epochs}"
+            )
+
+        if self.batch_size != KEEP_CONFIG_FIELD_VALUE:
+            params.learning_parameters.batch_size = int(self.batch_size)
+            logger.debug(
+                f"Set params.learning_parameters.batch_size="
+                f"{params.learning_parameters.batch_size}"
+            )
+        else:
+            logger.debug(
+                f"Keep params.learning_parameters.batch_size="
+                f"{params.learning_parameters.batch_size}"
+            )
+
+        logger.debug("Setup environment")
+        self.environment, self.task = self._create_environment_and_task(
+            params, self.labels_schema, self.model_template
+        )
+
+        logger.debug("Train model")
+        self.output_model = ModelEntity(
+            self.dataset,
+            self.environment.get_model_configuration(),
+            model_status=ModelStatus.NOT_READY,
+        )
+
+        self.copy_hyperparams = deepcopy(self.task._hyperparams)
+
+        self.task.train(self.dataset, self.output_model)
+        assert (
+            self.output_model.model_status == ModelStatus.SUCCESS
+        ), "Training was failed"
+
+        score_name, score_value = self._get_training_performance_as_score_name_value()
+        logger.info(f"performance={self.output_model.performance}")
+        data_collector.log_final_metric("metric_name", self.name + "/" + score_name)
+        data_collector.log_final_metric("metric_value", score_value)
+
+    def __call__(self, data_collector: DataCollector, results_prev_stages: OrderedDict):
+        self._run_ote_training(data_collector)
+        results = {
+            "model_template": self.model_template,
+            "task": self.task,
+            "dataset": self.dataset,
+            "environment": self.environment,
+            "output_model": self.output_model,
+        }
+        return results
+
+
 def is_nncf_enabled():
     return importlib.util.find_spec("nncf") is not None
 
