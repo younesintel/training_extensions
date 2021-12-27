@@ -26,12 +26,12 @@ from tests.ote_cli.common import collect_env_vars, get_some_vars, create_venv, p
 
 
 args = {
-    '--train-ann-file': 'data/anomaly/train.json',
-    '--train-data-roots': 'data/anomaly/shapes',
-    '--val-ann-file': 'data/anomaly/val.json',
-    '--val-data-roots': 'data/anomaly/shapes',
-    '--test-ann-files': 'data/anomaly/test.json',
-    '--test-data-roots': 'data/anomaly/shapes',
+    '--train-ann-file': 'data/bottle/train.json',
+    '--train-data-roots': 'data/bottle/',
+    '--val-ann-file': 'data/bottle/val.json',
+    '--val-data-roots': 'data/bottle/',
+    '--test-ann-files': 'data/bottle/val.json',
+    '--test-data-roots': 'data/bottle/',
 }
 
 root = '/tmp/ote_cli/'
