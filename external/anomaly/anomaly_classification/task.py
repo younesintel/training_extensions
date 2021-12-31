@@ -21,13 +21,13 @@ import io
 import logging
 import os
 import shutil
-import struct
 import subprocess  # nosec
 import tempfile
 from glob import glob
 from typing import Optional, Union
 
 import torch
+from anomalib.core.callbacks import AnomalyScoreNormalizationCallback
 from anomalib.core.model import AnomalyModule
 from anomalib.models import get_model
 from omegaconf import DictConfig, ListConfig
@@ -132,7 +132,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         config = self.get_config()
         datamodule = OTEAnomalyDataModule(config=config, dataset=dataset)
-        callbacks = [ProgressCallback(parameters=train_parameters)]
+        callbacks = [ProgressCallback(parameters=train_parameters), AnomalyScoreNormalizationCallback()]
 
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
         self.trainer.fit(model=self.model, datamodule=datamodule)
@@ -153,10 +153,9 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         torch.save(model_info, buffer)
         output_model.set_data("weights.pth", buffer.getvalue())
         output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
-        # store computed threshold
-        output_model.set_data("threshold", bytes(struct.pack("f", self.model.threshold.item())))
+        self._set_metadata(output_model)
 
-        f1_score = self.model.image_metrics.OptimalF1.compute().item()
+        f1_score = self.model.image_metrics.F1.compute().item()
         output_model.performance = Performance(score=ScoreMetric(name="F1 Score", value=f1_score))
         output_model.precision = [ModelPrecision.FP32]
 
@@ -183,7 +182,8 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         # Callbacks.
         progress = ProgressCallback(parameters=inference_parameters)
         inference = InferenceCallback(dataset, self.labels)
-        callbacks = [progress, inference]
+        standardize = AnomalyScoreNormalizationCallback()
+        callbacks = [progress, standardize, inference]
 
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
         self.trainer.predict(model=self.model, datamodule=datamodule)
@@ -227,7 +227,14 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         with open(xml_file, "rb") as file:
             output_model.set_data("openvino.xml", file.read())
         output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
-        output_model.set_data("threshold", bytes(struct.pack("f", self.model.threshold.item())))
+        self._set_metadata(output_model)
+
+    def _set_metadata(self, output_model: ModelEntity):
+        output_model.set_data("image_threshold", self.model.image_threshold.value.cpu().numpy().tobytes())
+        output_model.set_data("image_mean", self.model.training_distribution.image_mean.cpu().numpy().tobytes())
+        output_model.set_data("image_std", self.model.training_distribution.image_std.cpu().numpy().tobytes())
+        output_model.set_data("pixel_mean", self.model.training_distribution.pixel_mean.cpu().numpy().tobytes())
+        output_model.set_data("pixel_std", self.model.training_distribution.pixel_std.cpu().numpy().tobytes())
 
     @staticmethod
     def _is_docker() -> bool:

@@ -20,17 +20,17 @@ import inspect
 import json
 import logging
 import os
-import struct
 import subprocess  # nosec
 import sys
 import tempfile
 from shutil import copyfile, copytree
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 from zipfile import ZipFile
 
 import numpy as np
 from addict import Dict as ADDict
 from anomalib.core.model.inference import OpenVINOInferencer
+from anomalib.utils.post_process import anomaly_map_to_color_map
 from compression.api import DataLoader
 from compression.engines.ie_engine import IEEngine
 from compression.graph import load_model, save_model
@@ -54,6 +54,7 @@ from ote_sdk.entities.model import (
     OptimizationMethod,
 )
 from ote_sdk.entities.optimization_parameters import OptimizationParameters
+from ote_sdk.entities.result_media import ResultMediaEntity
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.serialization.label_mapper import LabelSchemaMapper, label_schema_to_bytes
@@ -150,18 +151,47 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
             update_progress_callback = inference_parameters.update_progress
 
         # This always assumes that threshold is available in the task environment's model
-        # cast is used to placate mypy
-        threshold: float = cast(float, struct.unpack("f", (self.task_environment.model.get_data("threshold")))[0])
-        metadata = {"threshold": threshold}
+        meta_data = self.get_meta_data()
         for idx, dataset_item in enumerate(dataset):
-            anomaly_map = self.inferencer.predict(dataset_item.numpy, superimpose=False)
-            annotations_scene = self.annotation_converter.convert_to_annotation(
-                predictions=anomaly_map, metadata=metadata
+            anomaly_map, pred_score = self.inferencer.predict(
+                dataset_item.numpy, superimpose=False, meta_data=meta_data
             )
+            meta_data["pred_score"] = pred_score
+            annotations_scene = self.annotation_converter.convert_to_annotation(anomaly_map, meta_data)
             dataset_item.append_annotations(annotations_scene.annotations)
+            anomaly_map = anomaly_map_to_color_map(anomaly_map, normalize=False)
+            heatmap_media = ResultMediaEntity(
+                name="Anomaly Map",
+                type="anomaly_map",
+                annotation_scene=dataset_item.annotation_scene,
+                numpy=anomaly_map,
+            )
+            dataset_item.append_metadata_item(heatmap_media)
             update_progress_callback(int((idx + 1) / len(dataset) * 100))
 
         return dataset
+
+    def get_meta_data(self):
+        """Get Meta Data."""
+
+        image_threshold = np.frombuffer(self.task_environment.model.get_data("image_threshold"), dtype=np.float32)
+        image_mean = np.frombuffer(self.task_environment.model.get_data("image_mean"), dtype=np.float32)
+        image_std = np.frombuffer(self.task_environment.model.get_data("image_std"), dtype=np.float32)
+        pixel_mean = np.frombuffer(self.task_environment.model.get_data("pixel_mean"), dtype=np.float32).reshape(
+            self.config.model.input_size
+        )
+        pixel_std = np.frombuffer(self.task_environment.model.get_data("pixel_std"), dtype=np.float32).reshape(
+            self.config.model.input_size
+        )
+        meta_data = dict(
+            image_threshold=image_threshold,
+            pixel_threshold=image_threshold,  # re-use image threshold for pixel normalization
+            image_mean=image_mean,
+            image_std=image_std,
+            pixel_mean=pixel_mean,
+            pixel_std=pixel_std,
+        )
+        return meta_data
 
     def evaluate(self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None):
         """Evaluate the performance of the model.
@@ -245,7 +275,11 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
             self.__load_weights(path=os.path.join(tempdir, "model.bin"), output_model=output_model, key="openvino.bin")
 
         output_model.set_data("label_schema.json", label_schema_to_bytes(self.task_environment.label_schema))
-        output_model.set_data("threshold", self.task_environment.model.get_data("threshold"))
+        output_model.set_data("image_threshold", self.task_environment.model.get_data("image_threshold"))
+        output_model.set_data("image_mean", self.task_environment.model.get_data("image_mean"))
+        output_model.set_data("image_std", self.task_environment.model.get_data("image_std"))
+        output_model.set_data("pixel_mean", self.task_environment.model.get_data("pixel_mean"))
+        output_model.set_data("pixel_std", self.task_environment.model.get_data("pixel_std"))
         output_model.model_status = ModelStatus.SUCCESS
         output_model.model_format = ModelFormat.OPENVINO
         output_model.optimization_type = ModelOptimizationType.POT
@@ -300,10 +334,17 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
         """Return configuration required by the exported model."""
         # This always assumes that threshold is available in the task environment's model
         # cast is used to placate mypy
-        configuration = {
-            "threshold": cast(float, struct.unpack("f", (self.task_environment.model.get_data("threshold")))[0]),
-            "labels": LabelSchemaMapper.forward(self.task_environment.label_schema),
-        }
+        configuration = self.get_meta_data()
+        # Convert numpy array to list as numpy array is not JSON serializable.
+        for key, val in configuration.items():
+            if isinstance(val, np.ndarray):
+                if val.size > 1:
+                    configuration[key] = val.tolist()
+                else:
+                    configuration[key] = val.item()
+
+        configuration["labels"] = LabelSchemaMapper.forward(self.task_environment.label_schema)
+
         if "transforms" not in self.config.keys():
             configuration["mean_values"] = list(np.array([0.485, 0.456, 0.406]) * 255)
             configuration["scale_values"] = list(np.array([0.229, 0.224, 0.225]) * 255)
