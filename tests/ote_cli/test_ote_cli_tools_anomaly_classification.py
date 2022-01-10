@@ -1,3 +1,5 @@
+"""Tests for anomaly classification with OTE CLI"""
+
 # Copyright (C) 2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +17,6 @@
 import json
 import os
 from subprocess import run
-import shutil
 
 import pytest
 
@@ -25,18 +26,18 @@ from tests.ote_cli.common import collect_env_vars, get_some_vars, create_venv, p
 
 
 args = {
-    '--train-ann-file': '',
-    '--train-data-roots': 'data/classification/train',
-    '--val-ann-file': '',
-    '--val-data-roots': 'data/classification/val',
-    '--test-ann-files': '',
-    '--test-data-roots': 'data/classification/val',
+    '--train-ann-file': 'data/anomaly/train.json',
+    '--train-data-roots': 'data/anomaly/shapes',
+    '--val-ann-file': 'data/anomaly/val.json',
+    '--val-data-roots': 'data/anomaly/shapes',
+    '--test-ann-files': 'data/anomaly/test.json',
+    '--test-data-roots': 'data/anomaly/shapes',
 }
 
 root = '/tmp/ote_cli/'
 ote_dir = os.getcwd()
 
-templates = Registry('external').filter(task_type='CLASSIFICATION').templates
+templates = Registry('external').filter(task_type='ANOMALY_CLASSIFICATION').templates
 templates_ids = [template.model_template_id for template in templates]
 
 
@@ -56,12 +57,7 @@ def test_ote_train(template):
                     '--val-data-roots',
                     f'{os.path.join(ote_dir, args["--val-data-roots"])}',
                     '--save-model-to',
-                    f'{template_work_dir}/trained_{template.model_template_id}',
-                    'params',
-                    '--learning_parameters.max_num_epochs',
-                    '2',
-                    '--learning_parameters.batch_size',
-                    '2']
+                    f'{template_work_dir}/trained_{template.model_template_id}']
     assert run(command_line, env=collect_env_vars(work_dir)).returncode == 0
     assert os.path.exists(f'{template_work_dir}/trained_{template.model_template_id}/weights.pth')
     assert os.path.exists(f'{template_work_dir}/trained_{template.model_template_id}/label_schema.json')
@@ -123,8 +119,8 @@ def test_ote_eval_openvino(template):
         exported_performance = json.load(read_file)
         
     for k in trained_performance.keys():
-        assert abs(trained_performance[k] - exported_performance[k]) / trained_performance[k] <= 0.01, f"{trained_performance[k]=}, {exported_performance[k]=}"
-        
+        assert abs(trained_performance[k] - exported_performance[k]) / trained_performance[k] <= 0.00, f"{trained_performance[k]=}, {exported_performance[k]=}"
+
 
 @pytest.mark.parametrize("template", templates, ids=templates_ids)
 def test_ote_demo(template):
@@ -135,7 +131,7 @@ def test_ote_demo(template):
                     '--load-weights',
                     f'{template_work_dir}/trained_{template.model_template_id}/weights.pth',
                     '--input',
-                    f'{os.path.join(ote_dir, args["--test-data-roots"], "0")}',
+                    f'{os.path.join(ote_dir, args["--test-data-roots"])}/test/hexagon/',
                     '--delay',
                     '-1']
     assert run(command_line, env=collect_env_vars(work_dir)).returncode == 0
@@ -150,7 +146,7 @@ def test_ote_demo_openvino(template):
                     '--load-weights',
                     f'{template_work_dir}/exported_{template.model_template_id}/openvino.xml',
                     '--input',
-                    f'{os.path.join(ote_dir, args["--test-data-roots"], "0")}',
+                    f'{os.path.join(ote_dir, args["--test-data-roots"])}/test/hexagon/',
                     '--delay',
                     '-1']
     assert run(command_line, env=collect_env_vars(work_dir)).returncode == 0
@@ -181,40 +177,7 @@ def test_ote_deploy_openvino(template):
     patch_demo_py(os.path.join(deployment_dir, 'python', 'demo.py'),
                   os.path.join(deployment_dir, 'python', 'demo_patched.py'))
 
-    assert run(['python3', 'demo_patched.py', '-m', '../model/model.xml', '-i', f'{os.path.join(ote_dir, args["--test-data-roots"], "0")}'],
+    assert run(['python3', 'demo_patched.py', '-m', '../model/model.xml', '-i', f'{os.path.join(ote_dir, args["--test-data-roots"])}'],
                cwd=os.path.join(deployment_dir, 'python'),
                env=collect_env_vars(os.path.join(deployment_dir, 'python'))).returncode == 0
-
-@pytest.mark.parametrize("template", templates, ids=templates_ids)
-def test_ote_hpo(template):
-    work_dir, template_work_dir, algo_backend_dir = get_some_vars(template, root)
-    if os.path.exists(f"{template_work_dir}/hpo"):
-        shutil.rmtree(f"{template_work_dir}/hpo")
-    create_venv(algo_backend_dir, work_dir, template_work_dir)
-    command_line = ['ote',
-                    'train',
-                    template.model_template_id,
-                    '--train-ann-file',
-                    f'{os.path.join(ote_dir, args["--train-ann-file"])}',
-                    '--train-data-roots',
-                    f'{os.path.join(ote_dir, args["--train-data-roots"])}',
-                    '--val-ann-file',
-                    f'{os.path.join(ote_dir, args["--val-ann-file"])}',
-                    '--val-data-roots',
-                    f'{os.path.join(ote_dir, args["--val-data-roots"])}',
-                    '--save-model-to',
-                    f'{template_work_dir}/hpo_trained_{template.model_template_id}',
-                    '--enable-hpo',
-                    '--hpo-time-ratio',
-                    '1',
-                    'params',
-                    '--learning_parameters.max_num_epochs',
-                    '2',
-                    '--learning_parameters.batch_size',
-                    '2']
-    assert run(command_line, env=collect_env_vars(work_dir)).returncode == 0
-    assert os.path.exists(f"{template_work_dir}/hpo/hpopt_status.json")
-    with open(f"{template_work_dir}/hpo/hpopt_status.json", "r") as f:
-        assert json.load(f).get('best_config_id', None) is not None
-    assert os.path.exists(f'{template_work_dir}/hpo_trained_{template.model_template_id}/weights.pth')
-    assert os.path.exists(f'{template_work_dir}/hpo_trained_{template.model_template_id}/label_schema.json')
+    
