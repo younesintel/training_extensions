@@ -43,5 +43,10 @@ def get_dataset_class(task_type):
         from .anomaly.dataset import AnomalyClassificationDataset
 
         return AnomalyClassificationDataset
+    if task_type == TaskType.TEXT_TO_SPEECH:
+        from .text_to_speech.dataset import EmptyTTSDataset
+
+        return EmptyTTSDataset
+
 
     raise ValueError(f"Invalid task type: {task_type}")
