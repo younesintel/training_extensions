@@ -114,16 +114,16 @@ def generate_label_schema(dataset, task_type):
         label_schema.add_group(empty_group, exclusive_with=single_groups)
         return label_schema
 
-    if task_type == TaskType.ANOMALY_CLASSIFICATION:
-        return LabelSchemaEntity.from_labels(
-            [
-                LabelEntity(
-                    name="Normal", domain=Domain.ANOMALY_CLASSIFICATION, id=ID(0)
-                ),
-                LabelEntity(
-                    name="Anomalous", domain=Domain.ANOMALY_CLASSIFICATION, id=ID(1)
-                ),
-            ]
-        )
+    # if task_type == TaskType.ANOMALY_CLASSIFICATION:
+    #     return LabelSchemaEntity.from_labels(
+    #         [
+    #             LabelEntity(
+    #                 name="Normal", domain=Domain.ANOMALY_CLASSIFICATION, id=ID(0)
+    #             ),
+    #             LabelEntity(
+    #                 name="Anomalous", domain=Domain.ANOMALY_CLASSIFICATION, id=ID(1)
+    #             ),
+    #         ]
+    #     )
 
     return LabelSchemaEntity.from_labels(dataset.get_labels())

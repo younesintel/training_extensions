@@ -55,12 +55,14 @@ class InferenceCallback(Callback):
         ):
 
             assigned_label = self.anomalous_label if pred_label else self.normal_label
+            label = ScoredLabel(assigned_label, probability=float(pred_score))
             shape = Annotation(
                 Rectangle(x1=0, y1=0, x2=1, y2=1),
-                labels=[ScoredLabel(assigned_label, probability=float(pred_score))],
+                labels=[label],
             )
 
             dataset_item.append_annotations([shape])
+            dataset_item.append_labels([label])
 
             heatmap = anomaly_map_to_color_map(anomaly_map.squeeze(), normalize=False)
             heatmap_media = ResultMediaEntity(
