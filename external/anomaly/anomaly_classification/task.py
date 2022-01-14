@@ -303,14 +303,14 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         performance = metric.get_performance()
         performance.dashboard_metrics.extend(accuracy.dashboard_metrics)
 
-        performance.dashboard_metrics.append(BarMetricsGroup(
-            metrics=[accuracy.score],
-            visualization_info=BarChartInfo(
-                name="Accuracy",
-                palette=ColorPalette.DEFAULT,
-                )
-            )
-        )
+        # performance.dashboard_metrics.append(BarMetricsGroup(
+        #     metrics=[accuracy.score],
+        #     visualization_info=BarChartInfo(
+        #         name="Accuracy",
+        #         palette=ColorPalette.DEFAULT,
+        #         )
+        #     )
+        # )
 
         output_resultset.performance = performance
 
