@@ -64,11 +64,11 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         logger.info("Initializing the task environment.")
 
-        print('ENVIRONMENT:')
+        print("ENVIRONMENT:")
         for name, val in self.collect_env().items():
-            print(f'{name}: {val}')
-        print('pip list:')
-        subprocess.run('pip list', shell=True, check=True)
+            print(f"{name}: {val}")
+        print("pip list:")
+        subprocess.run("pip list", shell=True, check=True)
 
         self.task_environment = task_environment
         self.model_name = task_environment.model_template.name
@@ -89,45 +89,46 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         from collections import defaultdict
 
         env_info = {}
-        env_info['sys.platform'] = sys.platform
-        env_info['Python'] = sys.version.replace('\n', '')
+        env_info["sys.platform"] = sys.platform
+        env_info["Python"] = sys.version.replace("\n", "")
 
         cuda_available = torch.cuda.is_available()
-        env_info['CUDA available'] = cuda_available
+        env_info["CUDA available"] = cuda_available
 
         if cuda_available:
             devices = defaultdict(list)
             for k in range(torch.cuda.device_count()):
                 devices[torch.cuda.get_device_name(k)].append(str(k))
             for name, device_ids in devices.items():
-                env_info['GPU ' + ','.join(device_ids)] = name
+                env_info["GPU " + ",".join(device_ids)] = name
 
             from torch.utils.cpp_extension import CUDA_HOME
-            env_info['CUDA_HOME'] = CUDA_HOME
+
+            env_info["CUDA_HOME"] = CUDA_HOME
 
             if CUDA_HOME is not None and osp.isdir(CUDA_HOME):
                 try:
-                    nvcc = osp.join(CUDA_HOME, 'bin/nvcc')
-                    nvcc = subprocess.check_output(
-                        f'"{nvcc}" -V | tail -n1', shell=True)
-                    nvcc = nvcc.decode('utf-8').strip()
+                    nvcc = osp.join(CUDA_HOME, "bin/nvcc")
+                    nvcc = subprocess.check_output(f'"{nvcc}" -V | tail -n1', shell=True)
+                    nvcc = nvcc.decode("utf-8").strip()
                 except subprocess.SubprocessError:
-                    nvcc = 'Not Available'
-                env_info['NVCC'] = nvcc
+                    nvcc = "Not Available"
+                env_info["NVCC"] = nvcc
 
         try:
-            gcc = subprocess.check_output('gcc --version | head -n1', shell=True)
-            gcc = gcc.decode('utf-8').strip()
-            env_info['GCC'] = gcc
+            gcc = subprocess.check_output("gcc --version | head -n1", shell=True)
+            gcc = gcc.decode("utf-8").strip()
+            env_info["GCC"] = gcc
         except subprocess.CalledProcessError:  # gcc is unavailable
-            env_info['GCC'] = 'n/a'
+            env_info["GCC"] = "n/a"
 
-        env_info['PyTorch'] = torch.__version__
-        env_info['PyTorch compiling details'] = torch.__config__.show()
+        env_info["PyTorch"] = torch.__version__
+        env_info["PyTorch compiling details"] = torch.__config__.show()
 
         try:
             import torchvision
-            env_info['TorchVision'] = torchvision.__version__
+
+            env_info["TorchVision"] = torchvision.__version__
         except ModuleNotFoundError:
             pass
 
@@ -250,6 +251,16 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         logger.info("Performing inference on the validation set using the base torch model.")
         config = self.get_config()
+        logger.info(f'CONFIG: {str(config)}')
+        from anomalib.models.padim.model import PadimLightning
+        if isinstance(self.model, PadimLightning):
+            logger.info('GAUSSIAN:')
+            gaussian = self.model.model.gaussian
+            logger.info(str(gaussian.mean))
+            logger.info(str(gaussian.inv_covariance))
+            logger.info('THRESHOLDS:')
+            logger.info(str(self.model.image_threshold.value))
+            logger.info(str(self.model.pixel_threshold.value))
         datamodule = OTEAnomalyDataModule(config=config, dataset=dataset)
 
         # Callbacks.
@@ -277,9 +288,9 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             evaluation_metric (Optional[str], optional): Evaluation metric. Defaults to None. Instead,
                 f-measure is used by default.
         """
-        logger.info('GT Dataset')
+        logger.info("GT Dataset")
         logger.info(repr(output_resultset.ground_truth_dataset))
-        logger.info('Pred Dataset')
+        logger.info("Pred Dataset")
         logger.info(repr(output_resultset.prediction_dataset))
         accuracy = MetricsHelper.compute_accuracy(output_resultset).get_performance()
         metric = MetricsHelper.compute_f_measure(output_resultset)
