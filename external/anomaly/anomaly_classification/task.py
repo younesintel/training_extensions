@@ -35,7 +35,13 @@ from ote_anomalib.data import OTEAnomalyDataModule
 from ote_anomalib.logging import get_logger
 from ote_sdk.entities.datasets import DatasetEntity
 from ote_sdk.entities.inference_parameters import InferenceParameters
-from ote_sdk.entities.metrics import Performance, ScoreMetric
+from ote_sdk.entities.metrics import (
+    BarChartInfo,
+    BarMetricsGroup,
+    ColorPalette,
+    Performance,
+    ScoreMetric,
+)
 from ote_sdk.entities.model import ModelEntity, ModelPrecision
 from ote_sdk.entities.resultset import ResultSetEntity
 from ote_sdk.entities.scored_label import ScoredLabel
@@ -296,7 +302,16 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         metric = MetricsHelper.compute_f_measure(output_resultset)
         performance = metric.get_performance()
         performance.dashboard_metrics.extend(accuracy.dashboard_metrics)
-        performance.dashboard_metrics.append(accuracy.score)
+
+        performance.dashboard_metrics.append(BarMetricsGroup(
+            metrics=[accuracy.score],
+            visualization_info=BarChartInfo(
+                name="Accuracy",
+                palette=ColorPalette.DEFAULT,
+                )
+            )
+        )
+
         output_resultset.performance = performance
 
         # NOTE: This is for debugging purpose.
