@@ -266,7 +266,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
                 dataset_item.annotation_scene.annotations[0].get_labels()[0].name,
                 dataset_item.annotation_scene.annotations[0].get_labels()[0].probability,
             )
-            logger.info(str(dataset_item.annotation_scene))
+            logger.info(str(dataset_item))
         return dataset
 
     def evaluate(self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None) -> None:
