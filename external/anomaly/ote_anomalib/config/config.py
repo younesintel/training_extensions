@@ -36,6 +36,7 @@ def get_anomalib_config(task_name: str, ote_config: ConfigurableParameters) -> U
     """
     model_config_path = Path(anomalib.__file__).parent / "models" / task_name.lower() / "config.yaml"
     anomalib_config = get_configurable_parameters(model_name=task_name.lower(), model_config_path=model_config_path)
+    anomalib_config.debug_parameters = {"enable_debug_dump": False}
     update_anomalib_config(anomalib_config, ote_config)
     return anomalib_config
 
