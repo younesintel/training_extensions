@@ -24,6 +24,7 @@ from ote_sdk.configuration import ConfigurableParameters
 from ote_sdk.configuration.elements import (
     ParameterGroup,
     add_parameter_group,
+    configurable_boolean,
     configurable_integer,
     selectable,
     string_attribute,
@@ -39,6 +40,22 @@ class BaseAnomalyClassificationConfig(ConfigurableParameters):
 
     header = string_attribute("Configuration for an anomaly classification task")
     description = header
+
+    @attrs
+    class DebugParameters(ParameterGroup):
+        """
+        Debugging Parameters
+        """
+
+        header = string_attribute("Debugging Parameters")
+        description = header
+
+        enable_debug_dump = configurable_boolean(
+            default_value=False,
+            header="Enable data dumps for debugging",
+            description="Enable data dumps for debugging",
+            affects_outcome_of=ModelLifecycle.NONE,
+        )
 
     @attrs
     class DatasetParameters(ParameterGroup):
@@ -97,3 +114,4 @@ class BaseAnomalyClassificationConfig(ConfigurableParameters):
 
     dataset = add_parameter_group(DatasetParameters)
     pot_parameters = add_parameter_group(POTParameters)
+    debug_parameters = add_parameter_group(DebugParameters)

@@ -45,6 +45,26 @@ dataset:
       potentially causing out of memory errors, please update with caution.
   type: PARAMETER_GROUP
   visible_in_ui: true
+debug_parameters:
+  description: Debugging Parameters
+  enable_debug_dump:
+    affects_outcome_of: NONE
+    default_value: false
+    description: Enable data dumps for debugging
+    editable: true
+    header: Enable data dumps for debugging
+    type: BOOLEAN
+    ui_rules:
+      action: DISABLE_EDITING
+      operator: AND
+      rules: []
+      type: UI_RULES
+    value: false
+    visible_in_ui: true
+    warning: null
+  header: Debugging Parameters
+  type: PARAMETER_GROUP
+  visible_in_ui: true
 description: Configuration for Padim
 header: Configuration for Padim
 id: ""

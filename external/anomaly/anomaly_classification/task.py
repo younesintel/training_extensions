@@ -48,11 +48,15 @@ from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
 from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
 from pytorch_lightning import Trainer
 
+from .debug import debug_trace, get_dump_file_path
+
 logger = get_logger(__name__)
 
 
 class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, IExportTask, IUnload):
     """Base Anomaly Classification Task."""
+
+    _debug_dump_file_path: str = get_dump_file_path()
 
     def __init__(self, task_environment: TaskEnvironment) -> None:
         """Train, Infer, Export, Optimize and Deploy an Anomaly Classification Task.
@@ -76,6 +80,48 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         self.model = self.load_model(ote_model=task_environment.model)
 
         self.trainer: Trainer
+
+    def __getstate__(self):
+        from ote_sdk.configuration.helper import convert
+
+        model = {
+            "weights": self.model.state_dict(),
+            "config": self.config,
+        }
+        environment = {
+            "model_template": self.task_environment.model_template,
+            "hyperparams": convert(self.task_environment.get_hyper_parameters(), str),
+            "label_schema": self.task_environment.label_schema,
+        }
+        return {
+            "environment": environment,
+            "model": model,
+        }
+
+    def __setstate__(self, state):
+        from dataclasses import asdict
+
+        import yaml
+        from ote_sdk.configuration.helper import create
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_template = state["environment"]["model_template"]
+            with open(os.path.join(tmpdir, "template.yaml"), "wt", encoding="utf-8") as f:
+                yaml.dump(asdict(model_template), f)
+            model_template.model_template_path = os.path.join(tmpdir, "template.yaml")
+
+            hyperparams = create(state["environment"]["hyperparams"])
+            label_schema = state["environment"]["label_schema"]
+            environment = TaskEnvironment(
+                model_template=model_template,
+                model=None,
+                hyper_parameters=hyperparams,
+                label_schema=label_schema,
+            )
+            self.__init__(environment)
+
+        self.model.load_state_dict(state["model"]["weights"])
+        self.config = self.get_config()
 
     def get_config(self) -> Union[DictConfig, ListConfig]:
         """Get Anomalib Config from task environment.
@@ -123,6 +169,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
 
         return model
 
+    @debug_trace
     def train(
         self,
         dataset: DatasetEntity,
@@ -187,6 +234,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         with open(file=cancel_training_file_path, mode="a", encoding="utf-8"):
             pass
 
+    @debug_trace
     def infer(self, dataset: DatasetEntity, inference_parameters: InferenceParameters) -> DatasetEntity:
         """Perform inference on a dataset.
 
@@ -213,6 +261,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         self.trainer.predict(model=self.model, datamodule=datamodule)
         return dataset
 
+    @debug_trace
     def evaluate(self, output_resultset: ResultSetEntity, evaluation_metric: Optional[str] = None) -> None:
         """Evaluate the performance on a result set.
 
@@ -234,6 +283,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             )
         logger.info("%s performance of the base torch model: %3.2f", metric.f_measure.name, metric.f_measure.value)
 
+    @debug_trace
     def export(self, export_type: ExportType, output_model: ModelEntity) -> None:
         """Export model to OpenVINO IR.
 
