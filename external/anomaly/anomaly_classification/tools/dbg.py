@@ -91,7 +91,7 @@ if __name__ == "__main__":
                 elif entrypoint == "evaluate":
                     output_model = ModelEntity(DatasetEntity(), task.task_environment, model_status=ModelStatus.SUCCESS)
                     output_model.configuration.label_schema = task.task_environment.label_schema
-                    method_args["output_result_set"] = ResultSetEntity(
+                    method_args["output_resultset"] = ResultSetEntity(
                         model=output_model,
                         ground_truth_dataset=load_dataset(
                             dump["arguments"]["output_resultset"]["ground_truth_dataset"]

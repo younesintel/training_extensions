@@ -21,7 +21,7 @@ import shutil
 import subprocess  # nosec
 import tempfile
 from glob import glob
-from typing import Optional, Union
+from typing import Optional, OrderedDict, Union
 
 import torch
 from anomalib.core.callbacks import MinMaxNormalizationCallback
@@ -57,6 +57,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
     """Base Anomaly Classification Task."""
 
     _debug_dump_file_path: str = get_dump_file_path()
+    _features_dump_file_path: str = get_dump_file_path(name="features")
 
     def __init__(self, task_environment: TaskEnvironment) -> None:
         """Train, Infer, Export, Optimize and Deploy an Anomaly Classification Task.
@@ -121,7 +122,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             self.__init__(environment)
 
         self.model.load_state_dict(state["model"]["weights"])
-        self.config = self.get_config()
+        # self.config = self.get_config()
 
     def get_config(self) -> Union[DictConfig, ListConfig]:
         """Get Anomalib Config from task environment.
@@ -257,8 +258,45 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         normalize = MinMaxNormalizationCallback()
         callbacks = [progress, normalize, inference]
 
+        feature_vectors = OrderedDict()
+
+        def get_features(mod, inp, out):
+            name = mod.name
+            unique_name = name
+            i = 0
+            while unique_name in feature_vectors:
+                i += 1
+                unique_name = f'{name}__{i}'
+            if isinstance(out, torch.Tensor):
+                out = out.cpu().detach()
+            feature_vectors[unique_name] = out
+
+        def get_input(mod, inp, out):
+            feature_vectors['input'] = inp
+
+        handles = []
+        for name, m in self.model.model.named_modules():
+            m.name = name
+            handles.append(m.register_forward_hook(get_features))
+
+        handles.append(self.model.model.register_forward_hook(get_input))
+
+        def dump(mod, inp, out):
+            import pickle
+            logger.warning(f"Saving debug dump to {self._features_dump_file_path}")
+            os.makedirs(os.path.dirname(self._features_dump_file_path), exist_ok=True)
+            with open(self._features_dump_file_path, "ab") as fp:
+                pickle.dump(feature_vectors, fp)
+            feature_vectors.clear()
+
+        handles.append(self.model.model.register_forward_hook(dump))
+
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
         self.trainer.predict(model=self.model, datamodule=datamodule)
+
+        for h in handles:
+            h.remove()
+
         return dataset
 
     @debug_trace

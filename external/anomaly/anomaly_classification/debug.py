@@ -16,12 +16,12 @@ from ote_sdk.entities.image import Image
 logger = get_logger(__name__)
 
 
-def get_dump_file_path():
+def get_dump_file_path(name = None):
     full_path = os.path.join(
         "/NOUS" if os.path.exists("/NOUS") else "/tmp",
         "debug_dumps",
         socket.gethostname(),
-        datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".pkl",
+        datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".pkl" if name is None else name + ".pkl",
     )
     return full_path
 
