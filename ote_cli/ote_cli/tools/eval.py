@@ -121,12 +121,13 @@ def main():
     )
 
     dataset_label_schema = generate_label_schema(dataset, template.task_type)
-    check_label_schemas(
-        read_label_schema(
-            os.path.join(os.path.dirname(args.load_weights), "label_schema.json")
-        ),
-        dataset_label_schema,
-    )
+    if dataset_label_schema is not None:
+        check_label_schemas(
+            read_label_schema(
+                os.path.join(os.path.dirname(args.load_weights), "label_schema.json")
+            ),
+            dataset_label_schema,
+        )
 
     environment = TaskEnvironment(
         model=None,

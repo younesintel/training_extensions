@@ -65,6 +65,12 @@ def read_model(model_configuration, path, train_dataset):
             full_path = os.path.join(os.path.dirname(path), key)
             if os.path.exists(full_path):
                 model_adapters[key] = ModelAdapter(read_binary(full_path))
+    elif os.path.isdir(path):
+        file_names = os.listdir(path)
+        model_adapters = {}
+        for name in file_names:
+            if name.endswith('.xml') or name.endswith('.bin'):
+                model_adapters[name] = ModelAdapter(os.path.join(path, name))
     else:
         model_adapters = {"weights.pth": ModelAdapter(read_binary(path))}
 
@@ -81,6 +87,8 @@ def read_label_schema(path):
     """
     Reads json file and returns deserialized LabelSchema.
     """
+    if not os.path.exists(path):
+        return None
 
     with open(path, encoding="UTF-8") as read_file:
         serialized_label_schema = json.load(read_file)
@@ -125,5 +133,8 @@ def generate_label_schema(dataset, task_type):
                 ),
             ]
         )
+
+    if task_type == TaskType.TEXT_TO_SPEECH:
+        return None
 
     return LabelSchemaEntity.from_labels(dataset.get_labels())
