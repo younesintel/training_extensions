@@ -63,9 +63,6 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         """
         logger.info("Initializing the task environment.")
 
-        torch.backends.cudnn.enabled = False
-        logger.info(f"CUDNN status: {torch.backends.cudnn.enabled}")
-
         self.task_environment = task_environment
         self.model_name = task_environment.model_template.name
         self.labels = task_environment.get_labels()
@@ -141,10 +138,12 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         config = self.get_config()
         datamodule = OTEAnomalyDataModule(config=config, dataset=dataset)
         callbacks = [ProgressCallback(parameters=train_parameters), MinMaxNormalizationCallback()]
-
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
-        self.trainer.fit(model=self.model, datamodule=datamodule)
 
+        torch.backends.cudnn.enabled = False
+        logger.info("CUDNN status: %s", torch.backends.cudnn.enabled)
+
+        self.trainer.fit(model=self.model, datamodule=datamodule)
         self.save_model(output_model)
 
     def save_model(self, output_model: ModelEntity) -> None:
@@ -202,8 +201,11 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         inference = InferenceCallback(dataset, self.labels)
         normalize = MinMaxNormalizationCallback()
         callbacks = [progress, normalize, inference]
-
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
+
+        torch.backends.cudnn.enabled = False
+        logger.info("CUDNN status: %s", torch.backends.cudnn.enabled)
+
         self.trainer.predict(model=self.model, datamodule=datamodule)
         return dataset
 
