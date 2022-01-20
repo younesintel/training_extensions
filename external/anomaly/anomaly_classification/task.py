@@ -62,7 +62,6 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
             task_environment (TaskEnvironment): OTE Task environment.
         """
         logger.info("Initializing the task environment.")
-
         self.task_environment = task_environment
         self.model_name = task_environment.model_template.name
         self.labels = task_environment.get_labels()
