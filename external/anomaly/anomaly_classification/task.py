@@ -61,6 +61,8 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         Args:
             task_environment (TaskEnvironment): OTE Task environment.
         """
+        logger.info("CUDNN status: %s", torch.backends.cudnn.enabled)
+        torch.backends.cudnn.enabled = True
         logger.info("Initializing the task environment.")
         self.task_environment = task_environment
         self.model_name = task_environment.model_template.name
@@ -139,7 +141,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         callbacks = [ProgressCallback(parameters=train_parameters), MinMaxNormalizationCallback()]
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
 
-        torch.backends.cudnn.enabled = False
+        # torch.backends.cudnn.enabled = False
         logger.info("CUDNN status: %s", torch.backends.cudnn.enabled)
 
         self.trainer.fit(model=self.model, datamodule=datamodule)
@@ -202,7 +204,7 @@ class AnomalyClassificationTask(ITrainingTask, IInferenceTask, IEvaluationTask, 
         callbacks = [progress, normalize, inference]
         self.trainer = Trainer(**config.trainer, logger=False, callbacks=callbacks)
 
-        torch.backends.cudnn.enabled = False
+        # torch.backends.cudnn.enabled = False
         logger.info("CUDNN status: %s", torch.backends.cudnn.enabled)
 
         self.trainer.predict(model=self.model, datamodule=datamodule)
