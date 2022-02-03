@@ -71,9 +71,7 @@ def main():
     environment = TaskEnvironment(
         model=None,
         hyper_parameters=hyper_parameters,
-        label_schema=read_label_schema(
-            os.path.join(os.path.dirname(args.load_weights), "label_schema.json")
-        ),
+        label_schema=read_label_schema(args.load_weights),
         model_template=template,
     )
 
@@ -93,3 +91,7 @@ def main():
 
     os.makedirs(args.save_model_to, exist_ok=True)
     save_model_data(exported_model, args.save_model_to)
+
+
+if __name__ == "__main__":
+    main()

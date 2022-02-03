@@ -18,7 +18,6 @@ OpenVINO Anomaly Task
 
 import inspect
 import json
-import logging
 import os
 import subprocess  # nosec
 import sys
@@ -63,6 +62,7 @@ from ote_sdk.usecases.exportable_code import demo
 from ote_sdk.usecases.exportable_code.prediction_to_annotation_converter import (
     AnomalyClassificationToAnnotationConverter,
 )
+from ote_sdk.usecases.exportable_code.utils import set_proper_git_commit_hash
 from ote_sdk.usecases.tasks.interfaces.deployment_interface import IDeploymentTask
 from ote_sdk.usecases.tasks.interfaces.evaluate_interface import IEvaluationTask
 from ote_sdk.usecases.tasks.interfaces.inference_interface import IInferenceTask
@@ -113,7 +113,7 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
     """
 
     def __init__(self, task_environment: TaskEnvironment) -> None:
-        logging.info("Initializing the OpenVINO task.")
+        logger.info("Initializing the OpenVINO task.")
         self.task_environment = task_environment
         self.config = self.get_config()
         self.inferencer = self.load_inferencer()
@@ -158,7 +158,7 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
                 dataset_item.numpy, superimpose=False, meta_data=meta_data
             )
             annotations_scene = self.annotation_converter.convert_to_annotation(pred_score, meta_data)
-            dataset_item.append_annotations(annotations_scene.annotations)
+            dataset_item.append_labels(annotations_scene.annotations[0].get_labels())
             anomaly_map = anomaly_map_to_color_map(anomaly_map, normalize=False)
             heatmap_media = ResultMediaEntity(
                 name="Anomaly Map",
@@ -281,7 +281,6 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
         output_model.set_data("image_threshold", self.task_environment.model.get_data("image_threshold"))
         output_model.set_data("min", self.task_environment.model.get_data("min"))
         output_model.set_data("max", self.task_environment.model.get_data("max"))
-
         output_model.model_format = ModelFormat.OPENVINO
         output_model.optimization_type = ModelOptimizationType.POT
         output_model.optimization_methods = [OptimizationMethod.QUANTIZATION]
@@ -339,11 +338,8 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
             "image_threshold": np.frombuffer(
                 self.task_environment.model.get_data("image_threshold"), dtype=np.float32
             ).item(),
-            "pixel_threshold": np.frombuffer(
-                self.task_environment.model.get_data("image_threshold"), dtype=np.float32
-            ).item(),
             "min": np.frombuffer(self.task_environment.model.get_data("min"), dtype=np.float32).item(),
-            "max": np.frombuffer(self.task_environment.model.get_data("image_threshold"), dtype=np.float32).item(),
+            "max": np.frombuffer(self.task_environment.model.get_data("max"), dtype=np.float32).item(),
             "labels": LabelSchemaMapper.forward(self.task_environment.label_schema),
             "threshold": 0.5,
         }
@@ -379,6 +375,7 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
         with tempfile.TemporaryDirectory() as tempdir:
             copyfile(os.path.join(work_dir, "setup.py"), os.path.join(tempdir, "setup.py"))
             copyfile(os.path.join(work_dir, "requirements.txt"), os.path.join(tempdir, "requirements.txt"))
+            set_proper_git_commit_hash(os.path.join(tempdir, "requirements.txt"))
             copytree(os.path.join(work_dir, name_of_package), os.path.join(tempdir, name_of_package))
             config_path = os.path.join(tempdir, name_of_package, "config.json")
             with open(config_path, "w", encoding="utf-8") as file:
@@ -406,6 +403,7 @@ class OpenVINOAnomalyClassificationTask(IInferenceTask, IEvaluationTask, IOptimi
                 arch.writestr(os.path.join("model", "model.bin"), self.task_environment.model.get_data("openvino.bin"))
                 arch.write(os.path.join(tempdir, "requirements.txt"), os.path.join("python", "requirements.txt"))
                 arch.write(os.path.join(work_dir, "README.md"), os.path.join("python", "README.md"))
+                arch.write(os.path.join(work_dir, "LICENSE"), os.path.join("python", "LICENSE"))
                 arch.write(os.path.join(work_dir, "demo.py"), os.path.join("python", "demo.py"))
                 arch.write(os.path.join(tempdir, wheel_file_name), os.path.join("python", wheel_file_name))
             with open(os.path.join(tempdir, "openvino.zip"), "rb") as output_arch:
