@@ -259,6 +259,9 @@ def ote_deploy_openvino_testing(template, root, ote_dir, args):
     # Install ote_sdk from local folder instead.
     # Install the demo_package with --no-deps since, requirements.txt has been embedded to the demo_package during creation.
     remove_ote_sdk_from_requirements(os.path.join(deployment_dir, 'python', 'requirements.txt'))
+    assert run(['python3', '-m', 'pip', 'install', '--upgrade', 'pip'],
+               cwd=os.path.join(deployment_dir, 'python'),
+               env=collect_env_vars(os.path.join(deployment_dir, 'python'))).returncode == 0
     assert run(['python3', '-m', 'pip', 'install', '-e', os.path.join(os.path.dirname(__file__), '..', '..', 'ote_sdk')],
                cwd=os.path.join(deployment_dir, 'python'),
                env=collect_env_vars(os.path.join(deployment_dir, 'python'))).returncode == 0
@@ -317,7 +320,7 @@ def ote_demo_deployment_testing(template, root, ote_dir, args):
 
 
 def pot_optimize_testing(template, root, ote_dir, args):
-    work_dir, template_work_dir, algo_backend_dir = get_some_vars(template, root)
+    work_dir, template_work_dir, _ = get_some_vars(template, root)
     command_line = ['ote',
                     'optimize',
                     template.model_template_id,
@@ -358,7 +361,7 @@ def pot_eval_testing(template, root, ote_dir, args):
 
 
 def nncf_optimize_testing(template, root, ote_dir, args):
-    work_dir, template_work_dir, algo_backend_dir = get_some_vars(template, root)
+    work_dir, template_work_dir, _ = get_some_vars(template, root)
     command_line = ['ote',
                     'optimize',
                     template.model_template_id,
