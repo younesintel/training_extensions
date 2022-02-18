@@ -31,7 +31,7 @@ from ote_sdk.entities.task_environment import TaskEnvironment
 from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
 
-from mmdet.apis.ote.apis.detection.ote_utils import get_task_class
+from mmdet_tasks.apis.ote.apis.detection.ote_utils import get_task_class
 
 
 logger = get_logger(name='sample')

@@ -47,12 +47,12 @@ from ote_sdk.usecases.tasks.interfaces.export_interface import ExportType, IExpo
 from ote_sdk.usecases.tasks.interfaces.optimization_interface import OptimizationType
 from ote_sdk.utils.shape_factory import ShapeFactory
 
-from mmdet.apis.ote.apis.detection import (OpenVINODetectionTask, OTEDetectionConfig, OTEDetectionInferenceTask,
+from mmdet_tasks.apis.ote.apis.detection import (OpenVINODetectionTask, OTEDetectionConfig, OTEDetectionInferenceTask,
                                            OTEDetectionNNCFTask, OTEDetectionTrainingTask)
-from mmdet.apis.ote.apis.detection.ote_utils import generate_label_schema
+from mmdet_tasks.apis.ote.apis.detection.ote_utils import generate_label_schema
 from mmdet.integration.nncf.utils import is_nncf_enabled
 
-DEFAULT_TEMPLATE_DIR = osp.join('configs', 'ote', 'custom-object-detection', 'gen3_mobilenetV2_ATSS')
+DEFAULT_TEMPLATE_DIR = osp.join('templates', 'custom-object-detection', 'gen3_mobilenetV2_ATSS')
 
 class ModelTemplate(unittest.TestCase):
     def check_capabilities(self, template):
@@ -62,17 +62,17 @@ class ModelTemplate(unittest.TestCase):
 
     @e2e_pytest_api
     def test_reading_gen3_ssd(self):
-        template = parse_model_template(osp.join('configs', 'ote', 'custom-object-detection', 'gen3_mobilenetV2_SSD', 'template.yaml'))
+        template = parse_model_template(osp.join('templates', 'custom-object-detection', 'gen3_mobilenetV2_SSD', 'template.yaml'))
         self.check_capabilities(template)
 
     @e2e_pytest_api
     def test_reading_gen3_atss(self):
-        template = parse_model_template(osp.join('configs', 'ote', 'custom-object-detection', 'gen3_mobilenetV2_ATSS', 'template.yaml'))
+        template = parse_model_template(osp.join('templates', 'custom-object-detection', 'gen3_mobilenetV2_ATSS', 'template.yaml'))
         self.check_capabilities(template)
 
     @e2e_pytest_api
     def test_reading_gen3_vfnet(self):
-        template = parse_model_template(osp.join('configs', 'ote', 'custom-object-detection', 'gen3_resnet50_VFNet', 'template_experimental.yaml'))
+        template = parse_model_template(osp.join('templates', 'custom-object-detection', 'gen3_resnet50_VFNet', 'template_experimental.yaml'))
         self.check_capabilities(template)
 
 
@@ -81,7 +81,7 @@ def test_configuration_yaml():
     configuration = OTEDetectionConfig()
     configuration_yaml_str = convert(configuration, str)
     configuration_yaml_converted = create(configuration_yaml_str)
-    configuration_yaml_loaded = create(osp.join('mmdet', 'apis', 'ote', 'apis', 'detection', 'configuration.yaml'))
+    configuration_yaml_loaded = create(osp.join('tasks', 'mmdet_tasks', 'apis', 'ote', 'apis', 'detection', 'configuration.yaml'))
     assert configuration_yaml_converted == configuration_yaml_loaded
 
 
@@ -91,14 +91,14 @@ class Sample(unittest.TestCase):
     @e2e_pytest_api
     def test_sample_on_cpu(self):
         output = run('export CUDA_VISIBLE_DEVICES=;'
-                     'python mmdet/apis/ote/sample/sample.py '
+                     'python tasks/mmdet_tasks/apis/ote/sample/sample.py '
                      f'--export {self.template}',
                      shell=True, check=True)
         assert output.returncode == 0
 
     @e2e_pytest_api
     def test_sample_on_gpu(self):
-        output = run('python mmdet/apis/ote/sample/sample.py '
+        output = run('python tasks/mmdet_tasks/apis/ote/sample/sample.py '
                      f'--export {self.template}',
                      shell=True, check=True)
         assert output.returncode == 0
