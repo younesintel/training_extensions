@@ -25,7 +25,7 @@ from ote_sdk.entities.label import Domain
 from ote_sdk.entities.label_schema import LabelSchemaEntity
 from ote_sdk.entities.subset import Subset
 
-from mmdet.apis.ote.extension.datasets.data_utils import load_dataset_items_coco_format
+from mmdet_tasks.apis.ote.extension.datasets.data_utils import load_dataset_items_coco_format
 
 from ote_sdk.test_suite.e2e_test_system import DataCollector, e2e_pytest_performance
 from ote_sdk.test_suite.training_tests_common import (make_path_be_abs,
