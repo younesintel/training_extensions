@@ -4,7 +4,7 @@ name: VFNet
 task_type: DETECTION
 task_family: VISION
 instantiation: "CLASS"
-summary: Model achieves the best accuracy but doubles the training time comparied to ATSS and has the slowest 
+summary: Model achieves the best accuracy but doubles the training time comparied to ATSS and has the slowest
   inference speed.
 application:
   ~
@@ -14,9 +14,9 @@ framework: OTEDetection v2.9.1
 
 # Task implementations.
 entrypoints:
-  base: mmdet.apis.ote.apis.detection.OTEDetectionTrainingTask
-  openvino: mmdet.apis.ote.apis.detection.OpenVINODetectionTask
-  nncf: mmdet.apis.ote.apis.detection.OTEDetectionNNCFTask
+  base: mmdet_tasks.apis.ote.apis.detection.OTEDetectionTrainingTask
+  openvino: mmdet_tasks.apis.ote.apis.detection.OpenVINODetectionTask
+  nncf: mmmmdet_tasksdet.apis.ote.apis.detection.OTEDetectionNNCFTask
 
 # Capabilities.
 capabilities:
@@ -24,7 +24,7 @@ capabilities:
 
 # Hyperparameters.
 hyper_parameters:
-  base_path: ../../../../mmdet/apis/ote/apis/detection/configuration.yaml
+  base_path: ../../../tasks/mmdet_tasks/apis/ote/apis/detection/configuration.yaml
   parameter_overrides:
     learning_parameters:
       batch_size:

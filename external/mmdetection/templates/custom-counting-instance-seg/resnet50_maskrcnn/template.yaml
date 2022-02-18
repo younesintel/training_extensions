@@ -4,7 +4,7 @@ name: MaskRCNN-ResNet50
 task_type: INSTANCE_SEGMENTATION
 task_family: VISION
 instantiation: "CLASS"
-summary: Counting algorithm provides counting of objects and object instance masks. This model is based on MaskRCNN-ResNet50 which gives accurate predictions but slower during training and inference. 
+summary: Counting algorithm provides counting of objects and object instance masks. This model is based on MaskRCNN-ResNet50 which gives accurate predictions but slower during training and inference.
 application: ~
 
 # Algo backend.
@@ -12,9 +12,9 @@ framework: OTEDetection v2.9.1
 
 # Task implementations.
 entrypoints:
-  base: mmdet.apis.ote.apis.detection.OTEDetectionTrainingTask
-  openvino: mmdet.apis.ote.apis.detection.OpenVINODetectionTask
-  nncf: mmdet.apis.ote.apis.detection.OTEDetectionNNCFTask
+  base: mmdet_tasks.apis.ote.apis.detection.OTEDetectionTrainingTask
+  openvino: mmdet_tasks.apis.ote.apis.detection.OpenVINODetectionTask
+  nncf: mmmmdet_tasksdet.apis.ote.apis.detection.OTEDetectionNNCFTask
 
 # Capabilities.
 capabilities:
@@ -22,7 +22,7 @@ capabilities:
 
 # Hyperparameters.
 hyper_parameters:
-  base_path: ../../../../mmdet/apis/ote/apis/detection/configuration.yaml
+  base_path: ../../../tasks/mmdet_tasks/apis/ote/apis/detection/configuration.yaml
   parameter_overrides:
     learning_parameters:
       batch_size:

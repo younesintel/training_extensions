@@ -39,11 +39,11 @@ from ote_sdk.usecases.tasks.interfaces.optimization_interface import Optimizatio
 
 from mmdet.apis import train_detector
 from mmdet.apis.fake_input import get_fake_input
-from mmdet.apis.ote.apis.detection.config_utils import prepare_for_training
-from mmdet.apis.ote.apis.detection.configuration import OTEDetectionConfig
-from mmdet.apis.ote.apis.detection.inference_task import OTEDetectionInferenceTask
-from mmdet.apis.ote.apis.detection.ote_utils import TrainingProgressCallback
-from mmdet.apis.ote.extension.utils.hooks import OTELoggerHook
+from mmdet_tasks.apis.ote.apis.detection.config_utils import prepare_for_training
+from mmdet_tasks.apis.ote.apis.detection.configuration import OTEDetectionConfig
+from mmdet_tasks.apis.ote.apis.detection.inference_task import OTEDetectionInferenceTask
+from mmdet_tasks.apis.ote.apis.detection.ote_utils import TrainingProgressCallback
+from mmdet_tasks.apis.ote.extension.utils.hooks import OTELoggerHook
 from mmdet.apis.train import build_val_dataloader
 from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.integration.nncf import check_nncf_is_enabled

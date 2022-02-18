@@ -46,9 +46,9 @@ from ote_sdk.usecases.tasks.interfaces.unload_interface import IUnload
 from ote_sdk.serialization.label_mapper import label_schema_to_bytes
 
 from mmdet.apis import export_model
-from mmdet.apis.ote.apis.detection.config_utils import patch_config, prepare_for_testing, set_hyperparams
-from mmdet.apis.ote.apis.detection.configuration import OTEDetectionConfig
-from mmdet.apis.ote.apis.detection.ote_utils import InferenceProgressCallback
+from mmdet_tasks.apis.ote.apis.detection.config_utils import patch_config, prepare_for_testing, set_hyperparams
+from mmdet_tasks.apis.ote.apis.detection.configuration import OTEDetectionConfig
+from mmdet_tasks.apis.ote.apis.detection.ote_utils import InferenceProgressCallback
 from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.models import build_detector
 from mmdet.parallel import MMDataCPU

@@ -127,6 +127,7 @@ python -c "import nncf"
 cd ..
 
 pip install -e ../../ote_sdk/ || exit 1
+pip install -e tasks/ || exit 1
 
 deactivate
 

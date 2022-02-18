@@ -35,10 +35,10 @@ from ote_sdk.usecases.evaluation.metrics_helper import MetricsHelper
 from ote_sdk.usecases.tasks.interfaces.training_interface import ITrainingTask
 
 from mmdet.apis import train_detector
-from mmdet.apis.ote.apis.detection.config_utils import cluster_anchors, prepare_for_training, set_hyperparams
-from mmdet.apis.ote.apis.detection.inference_task import OTEDetectionInferenceTask
-from mmdet.apis.ote.apis.detection.ote_utils import TrainingProgressCallback
-from mmdet.apis.ote.extension.utils.hooks import OTELoggerHook
+from mmdet_tasks.apis.ote.apis.detection.config_utils import cluster_anchors, prepare_for_training, set_hyperparams
+from mmdet_tasks.apis.ote.apis.detection.inference_task import OTEDetectionInferenceTask
+from mmdet_tasks.apis.ote.apis.detection.ote_utils import TrainingProgressCallback
+from mmdet_tasks.apis.ote.extension.utils.hooks import OTELoggerHook
 from mmdet.datasets import build_dataset
 from mmdet.utils.logger import get_root_logger
 
