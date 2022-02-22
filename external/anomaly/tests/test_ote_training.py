@@ -55,6 +55,7 @@ from ote_sdk.test_suite.training_tests_actions import (OTETestTrainingAction,
                                                        OTETestPotEvaluationAction,
                                                        OTETestNNCFAction,
                                                        OTETestNNCFEvaluationAction,
+                                                       OTETestNNCFGraphAction,
                                                        OTETestNNCFExportAction,
                                                        OTETestNNCFExportEvaluationAction)
 
@@ -112,6 +113,7 @@ def get_anomaly_test_action_classes() -> List[Type[BaseOTETestAction]]:
         OTETestPotEvaluationAction,
         OTETestNNCFAction,
         OTETestNNCFEvaluationAction,
+        OTETestNNCFGraphAction,
         OTETestNNCFExportAction,
         OTETestNNCFExportEvaluationAction,
     ]
@@ -130,7 +132,7 @@ class AnomalyDetectionTrainingTestParameters(DefaultOTETestCreationParametersInt
                        'ote_anomaly_classification_padim',
                        'ote_anomaly_classification_stfpm',
                     ],
-                    dataset_name='mvtec',
+                    dataset_name='mvtec_short',
                     usecase='precommit',
                 ),
                 dict(

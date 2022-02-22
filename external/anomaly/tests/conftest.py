@@ -24,7 +24,7 @@ except ImportError:
     _e2e_pytest_addoption = None
     pass
 
-from . import config
+#from . import config
 from ote_sdk.test_suite.pytest_insertions import *
 from ote_sdk.test_suite.training_tests_common import REALLIFE_USECASE_CONSTANT
 
