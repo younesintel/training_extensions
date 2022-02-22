@@ -99,13 +99,11 @@ pip install wheel || exit 1
 pip install --upgrade setuptools || exit 1
 
 if [[ -z $CUDA_VERSION_CODE ]]; then
-  pip install torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu -f https://download.pytorch.org/whl/torch_stable.html || exit 1
+  pip install torch==${TORCH_VERSION}+cpu -f https://download.pytorch.org/whl/torch_stable.html || exit 1
   echo torch==${TORCH_VERSION}+cpu >> ${CONSTRAINTS_FILE}
-  echo torchvision==${TORCHVISION_VERSION}+cpu >> ${CONSTRAINTS_FILE}
 else
-  pip install torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html || exit 1
+  pip install torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} -f https://download.pytorch.org/whl/lts/1.8/torch_lts.html || exit 1
   echo torch==${TORCH_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
-  echo torchvision==${TORCHVISION_VERSION}+cu${CUDA_VERSION_CODE} >> ${CONSTRAINTS_FILE}
 fi
 
 pip install -r requirements.txt

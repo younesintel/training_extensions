@@ -6,8 +6,6 @@ omegaconf==2.1.1
 onnx==1.10.2
 openvino==2022.1.0.dev20220131
 openvino-dev==2022.1.0.dev20220131
-ote-cli==0.2
-OTE-SDK==1.0
 pytorch-lightning==1.5.8
 scipy==1.5.4
 sentencepiece==0.1.96
